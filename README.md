@@ -1,6 +1,8 @@
 <div align="center">
 
-# ai-agents-from-scratch
+<img src="public/logo-agent.png" alt="agentlearn.fun logo" width="72" height="72" />
+
+# agentlearn.fun
 
 **14-lesson Node.js course portal for building AI agents from first principles.**
 

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { motion, useInView } from "framer-motion";
 import { useRef, useEffect, useState } from "react";
 import { ParticleField } from "@/components/landing/ParticleField";
@@ -101,10 +102,8 @@ export default function LandingPage() {
         <nav style={{ position: "relative", zIndex: 10, display: "grid", gridTemplateColumns: "1fr auto 1fr", alignItems: "center", padding: "0 32px", height: "60px", borderBottom: "0.5px solid var(--bd)" }}>
           {/* Left: logo */}
           <Link href="/" style={{ display: "flex", alignItems: "center", gap: "9px", textDecoration: "none" }}>
-            <div style={{ width: "24px", height: "24px", background: "var(--acc)", borderRadius: "4px", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <svg width="13" height="13" viewBox="0 0 11 11" fill="none"><path d="M5.5 1L10 9.5H1L5.5 1Z" fill="#000" /></svg>
-            </div>
-            <span style={{ fontSize: "14px", fontWeight: 500, color: "var(--t1)", letterSpacing: "-0.02em" }}>agents from scratch</span>
+            <Image src="/logo-agent.png" alt="logo" width={28} height={28} style={{ borderRadius: "4px" }} />
+            <span style={{ fontSize: "14px", fontWeight: 500, color: "var(--t1)", letterSpacing: "-0.02em" }}>agentlearn.fun</span>
           </Link>
           {/* Center: primary navigation */}
           <div style={{ display: "flex", gap: "4px" }}>
@@ -419,10 +418,8 @@ export default function LandingPage() {
       {/* Footer */}
       <footer style={{ padding: "20px 32px", borderTop: "0.5px solid var(--bd)", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          <div style={{ width: "16px", height: "16px", background: "var(--acc)", borderRadius: "2px", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <svg width="9" height="9" viewBox="0 0 11 11" fill="none"><path d="M5.5 1L10 9.5H1L5.5 1Z" fill="#000" /></svg>
-          </div>
-          <span style={{ fontSize: "11px", color: "var(--t3)", fontFamily: "var(--mono)" }}>agents from scratch</span>
+          <Image src="/logo-agent.png" alt="logo" width={18} height={18} style={{ borderRadius: "2px" }} />
+          <span style={{ fontSize: "11px", color: "var(--t3)", fontFamily: "var(--mono)" }}>agentlearn.fun</span>
         </div>
         <span style={{ fontSize: "11px", color: "var(--t4)", fontFamily: "var(--mono)" }}>14 lessons · 3 stages · MIT license</span>
       </footer>

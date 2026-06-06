@@ -5,7 +5,7 @@ import "./globals.css";
 import { PageTransition } from "@/components/shared/PageTransition";
 
 export const metadata: Metadata = {
-  title: "AI Agents from Scratch",
+  title: "agentlearn.fun",
   description: "Build AI agents from first principles using local LLMs.",
 };
 

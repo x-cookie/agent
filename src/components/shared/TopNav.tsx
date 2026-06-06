@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 
 interface TopNavProps {
   crumb?: React.ReactNode;
@@ -29,13 +30,9 @@ export function TopNav({ crumb, progress, total = 14, backHref, backLabel }: Top
       {/* Left: logo + breadcrumb */}
       <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
         <Link href="/" style={{ display: "flex", alignItems: "center", gap: "8px", textDecoration: "none" }}>
-          <div style={{ width: "22px", height: "22px", background: "var(--acc)", borderRadius: "3px", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <svg width="12" height="12" viewBox="0 0 11 11" fill="none">
-              <path d="M5.5 1L10 9.5H1L5.5 1Z" fill="#000" />
-            </svg>
-          </div>
+          <Image src="/logo-agent.png" alt="logo" width={28} height={28} style={{ borderRadius: "4px" }} />
           <span style={{ fontSize: "14px", fontWeight: 500, color: "var(--t1)", letterSpacing: "-0.02em" }}>
-            agents from scratch
+            agentlearn.fun
           </span>
         </Link>
         {crumb && (
