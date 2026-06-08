@@ -12,6 +12,8 @@
 ![stages](https://img.shields.io/badge/stages-3-8259EF?style=flat-square)
 ![runtime](https://img.shields.io/badge/runtime-Node.js-16a34a?style=flat-square)
 
+[https://x.com/agentlearnfun](https://x.com/agentlearnfun)
+
 </div>
 
 A full-stack learning portal for [AI Agents from Scratch](https://github.com/pguso/ai-agents-from-scratch). Each lesson covers one foundational agent pattern — model loading, function calling, memory, ReAct, DAG planning, tree/graph/chain of thought — with an embedded AI tutor backed by Claude.

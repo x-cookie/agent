@@ -5,6 +5,7 @@ import Image from "next/image";
 import { motion, useInView } from "framer-motion";
 import { useRef, useEffect, useState } from "react";
 import { ParticleField } from "@/components/landing/ParticleField";
+import { SocialIcons } from "@/components/shared/SocialIcons";
 import { LESSONS, STAGES, STAGE_GROUPS } from "@/lib/lessons";
 
 /* ── helpers ─────────────────────────────────────────────────── */
@@ -116,8 +117,9 @@ export default function LandingPage() {
               </Link>
             ))}
           </div>
-          {/* Right: CTA */}
-          <div style={{ display: "flex", justifyContent: "flex-end" }}>
+          {/* Right: socials + CTA */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: "12px" }}>
+            <SocialIcons />
             <Link href="/learn" style={{ fontSize: "13px", fontWeight: 500, padding: "7px 18px", borderRadius: "5px", background: "var(--acc)", color: "#000", textDecoration: "none" }}>
               Start free →
             </Link>

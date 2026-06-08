@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
+import { SocialIcons } from "./SocialIcons";
 
 interface TopNavProps {
   crumb?: React.ReactNode;
@@ -57,6 +58,7 @@ export function TopNav({ crumb, progress, total = 14, backHref, backLabel }: Top
 
       {/* Right: back + progress pills */}
       <div style={{ display: "flex", alignItems: "center", gap: "8px", justifyContent: "flex-end" }}>
+        <SocialIcons />
         {backHref && (
           <Link href={backHref} style={{ display: "flex", alignItems: "center", gap: "5px", fontSize: "12px", color: "var(--t2)", padding: "4px 10px", borderRadius: "4px", border: "0.5px solid var(--bd2)", background: "transparent", textDecoration: "none" }}>
             ← {backLabel ?? "back"}

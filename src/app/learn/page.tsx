@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { LESSONS, STAGES, STAGE_GROUPS } from "@/lib/lessons";
 import { getCompleted } from "@/lib/progress";
 import { CircuitBackground } from "@/components/roadmap/CircuitBackground";
+import { SocialIcons } from "@/components/shared/SocialIcons";
 
 function NodeCard({ lesson, completed, unlocked }: { lesson: (typeof LESSONS)[0]; completed: boolean; unlocked: boolean }) {
   const base: React.CSSProperties = {
@@ -93,7 +94,8 @@ export default function BranchPage() {
             <Link key={l.href} href={l.href} style={{ fontSize: "13px", fontWeight: 500, color: "var(--t1)", textDecoration: "none" }}>{l.label}</Link>
           ))}
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <SocialIcons />
           <div style={{ fontSize: "11px", padding: "3px 10px", borderRadius: "3px", background: "var(--bg3)", border: "0.5px solid var(--bd2)", color: "var(--t3)", fontFamily: "var(--mono)" }}>
             {completed.size}/14
           </div>
