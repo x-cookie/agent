@@ -12,7 +12,7 @@
 ![stages](https://img.shields.io/badge/stages-3-8259EF?style=flat-square)
 ![runtime](https://img.shields.io/badge/runtime-Node.js-16a34a?style=flat-square)
 
-[https://x.com/agentlearnfun](https://x.com/agentlearnfun)
+[https://x.com/agentlearnsite](https://x.com/agentlearnsite)
 
 </div>
 
