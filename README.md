@@ -14,6 +14,8 @@
 
 [https://x.com/agentlearnsite](https://x.com/agentlearnsite)
 
+`CA: A4qQ4Rk42S4smtxD2fGGSFLxsoMPykDtQJXuioTMpump`
+
 </div>
 
 A full-stack learning portal for [AI Agents from Scratch](https://github.com/pguso/ai-agents-from-scratch). Each lesson covers one foundational agent pattern — model loading, function calling, memory, ReAct, DAG planning, tree/graph/chain of thought — with an embedded AI tutor backed by Claude.

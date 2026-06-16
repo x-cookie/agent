@@ -8,6 +8,30 @@ import { ParticleField } from "@/components/landing/ParticleField";
 import { SocialIcons } from "@/components/shared/SocialIcons";
 import { LESSONS, STAGES, STAGE_GROUPS } from "@/lib/lessons";
 
+const CA = "A4qQ4Rk42S4smtxD2fGGSFLxsoMPykDtQJXuioTMpump";
+
+function CACopy() {
+  const [copied, setCopied] = useState(false);
+  const copy = () => {
+    navigator.clipboard.writeText(CA);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+  return (
+    <button
+      onClick={copy}
+      title={CA}
+      style={{ display: "flex", alignItems: "center", gap: "5px", background: "var(--bg2)", border: "0.5px solid var(--bd2)", borderRadius: "4px", padding: "3px 8px", cursor: "pointer", transition: "border-color 0.15s" }}
+    >
+      <span style={{ fontSize: "9px", color: "var(--t4)", fontFamily: "var(--mono)", letterSpacing: "0.02em" }}>CA</span>
+      <span style={{ fontSize: "9px", color: "var(--t3)", fontFamily: "var(--mono)" }}>
+        {CA.slice(0, 12)}…{CA.slice(-8)}
+      </span>
+      <i className={`ti ${copied ? "ti-check" : "ti-copy"}`} style={{ fontSize: "9px", color: copied ? "var(--green)" : "var(--t4)" }} aria-hidden />
+    </button>
+  );
+}
+
 /* ── helpers ─────────────────────────────────────────────────── */
 function useCountUp(target: number, duration = 1800) {
   const [count, setCount] = useState(0);
@@ -101,11 +125,14 @@ export default function LandingPage() {
 
         {/* TopNav — bigger, centered links */}
         <nav style={{ position: "relative", zIndex: 10, display: "grid", gridTemplateColumns: "1fr auto 1fr", alignItems: "center", padding: "0 32px", height: "60px", borderBottom: "0.5px solid var(--bd)" }}>
-          {/* Left: logo */}
-          <Link href="/" style={{ display: "flex", alignItems: "center", gap: "9px", textDecoration: "none" }}>
-            <Image src="/logo-agent.png" alt="logo" width={28} height={28} style={{ borderRadius: "4px" }} />
-            <span style={{ fontSize: "14px", fontWeight: 500, color: "var(--t1)", letterSpacing: "-0.02em" }}>agent</span>
-          </Link>
+          {/* Left: logo + CA */}
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <Link href="/" style={{ display: "flex", alignItems: "center", gap: "9px", textDecoration: "none" }}>
+              <Image src="/logo-agent.png" alt="logo" width={28} height={28} style={{ borderRadius: "4px" }} />
+              <span style={{ fontSize: "14px", fontWeight: 500, color: "var(--t1)", letterSpacing: "-0.02em" }}>agent</span>
+            </Link>
+            <CACopy />
+          </div>
           {/* Center: primary navigation */}
           <div style={{ display: "flex", gap: "4px" }}>
             {[
