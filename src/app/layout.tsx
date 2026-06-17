@@ -3,6 +3,7 @@ import { GeistSans } from "geist/font/sans";
 import { GeistMono } from "geist/font/mono";
 import "./globals.css";
 import { PageTransition } from "@/components/shared/PageTransition";
+import { AuthProvider } from "@/hooks/useAuth";
 
 export const metadata: Metadata = {
   title: "agent",
@@ -16,7 +17,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/dist/tabler-icons.min.css" />
       </head>
       <body>
-        <PageTransition>{children}</PageTransition>
+        <AuthProvider>
+          <PageTransition>{children}</PageTransition>
+        </AuthProvider>
       </body>
     </html>
   );

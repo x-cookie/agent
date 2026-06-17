@@ -47,7 +47,8 @@ export function TopNav({ crumb, progress, total = 14, backHref, backLabel }: Top
       {/* Center: nav links */}
       <div style={{ display: "flex", gap: "4px" }}>
         {[
-          { href: "/learn", label: "Roadmap" },
+          { href: "/learn", label: "Learn" },
+          { href: "/agents", label: "My Agents" },
           { href: "/docs",  label: "Docs"    },
         ].map(l => (
           <Link key={l.href} href={l.href} style={{ fontSize: "13px", fontWeight: 500, color: "var(--t2)", textDecoration: "none", padding: "5px 12px", borderRadius: "4px" }}>

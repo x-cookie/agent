@@ -75,8 +75,7 @@ export default function BranchPage() {
   const [completed, setCompleted] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    const c = getCompleted();
-    setCompleted(c); // eslint-disable-line react-hooks/set-state-in-effect
+    getCompleted().then(setCompleted);
   }, []);
 
   return (
@@ -90,7 +89,7 @@ export default function BranchPage() {
           <span style={{ fontSize: "14px", fontWeight: 500, color: "var(--t1)", letterSpacing: "-0.01em" }}>agent</span>
         </Link>
         <div style={{ display: "flex", gap: "28px" }}>
-          {[{ href: "/learn", label: "Roadmap" }, { href: "/docs", label: "Docs" }].map(l => (
+          {[{ href: "/learn", label: "Learn" }, { href: "/agents", label: "My Agents" }, { href: "/docs", label: "Docs" }].map(l => (
             <Link key={l.href} href={l.href} style={{ fontSize: "13px", fontWeight: 500, color: "var(--t1)", textDecoration: "none" }}>{l.label}</Link>
           ))}
         </div>

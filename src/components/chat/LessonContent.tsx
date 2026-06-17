@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { MarkdownRenderer } from "./MarkdownRenderer";
+import { PlaygroundShell } from "@/components/agent/PlaygroundShell";
 import { markComplete, getCompleted } from "@/lib/progress";
 import type { Lesson } from "@/lib/lessons";
 
@@ -27,8 +28,7 @@ export function LessonContent({ lesson, concept, code, prev, next }: Props) {
   const isDone = completed.has(lesson.folder);
 
   useEffect(() => {
-    const c = getCompleted();
-    setCompleted(c); // eslint-disable-line react-hooks/set-state-in-effect
+    getCompleted().then(setCompleted);
   }, []);
 
   /* Keyboard navigation: ← prev lesson, → next lesson */
@@ -43,8 +43,7 @@ export function LessonContent({ lesson, concept, code, prev, next }: Props) {
   }, [prev, next]);
 
   const handleComplete = useCallback(() => {
-    const updated = markComplete(lesson.folder);
-    setCompleted(new Set(updated));
+    markComplete(lesson.folder).then(updated => setCompleted(new Set(updated)));
   }, [lesson.folder]);
 
   return (
@@ -88,9 +87,14 @@ export function LessonContent({ lesson, concept, code, prev, next }: Props) {
           </MarkdownRenderer>
         )}
         {tab === "code" && (
-          <MarkdownRenderer>
-            {code || `*No code file available for this lesson yet.*`}
-          </MarkdownRenderer>
+          <PlaygroundShell
+            lesson={lesson}
+            baseCode={code || '// No code available'}
+            onSave={(code) => {
+              // Save logic handled inside PlaygroundShell
+              console.log('Save from playground:', code);
+            }}
+          />
         )}
 
         {/* Mark complete + nav */}

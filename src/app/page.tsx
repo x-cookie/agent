@@ -6,6 +6,7 @@ import { motion, useInView } from "framer-motion";
 import { useRef, useEffect, useState } from "react";
 import { ParticleField } from "@/components/landing/ParticleField";
 import { SocialIcons } from "@/components/shared/SocialIcons";
+import { WalletButton } from "@/components/auth/WalletButton";
 import { LESSONS, STAGES, STAGE_GROUPS } from "@/lib/lessons";
 
 const CA = "A4qQ4Rk42S4smtxD2fGGSFLxsoMPykDtQJXuioTMpump";
@@ -136,7 +137,8 @@ export default function LandingPage() {
           {/* Center: primary navigation */}
           <div style={{ display: "flex", gap: "4px" }}>
             {[
-              { href: "/learn", label: "Roadmap" },
+              { href: "/learn", label: "Learn" },
+              { href: "/agents", label: "My Agents" },
               { href: "/docs",  label: "Docs"    },
             ].map(l => (
               <Link key={l.href} href={l.href} style={{ fontSize: "13px", fontWeight: 500, color: "var(--t2)", textDecoration: "none", padding: "6px 14px", borderRadius: "5px", border: "0.5px solid transparent", transition: "color 0.15s" }}>
@@ -144,12 +146,10 @@ export default function LandingPage() {
               </Link>
             ))}
           </div>
-          {/* Right: socials + CTA */}
+          {/* Right: socials + wallet */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: "12px" }}>
             <SocialIcons />
-            <Link href="/learn" style={{ fontSize: "13px", fontWeight: 500, padding: "7px 18px", borderRadius: "5px", background: "var(--acc)", color: "#000", textDecoration: "none" }}>
-              Start free →
-            </Link>
+            <WalletButton />
           </div>
         </nav>
 
