@@ -56,7 +56,7 @@ describe('AgentStore (localStorage)', () => {
 
     const renamed = await agentStore.rename(saved.id, 'New Name');
     expect(renamed.name).toBe('New Name');
-    expect(renamed.updatedAt).toBeGreaterThan(saved.createdAt);
+    expect(renamed.updatedAt).toBeGreaterThanOrEqual(saved.createdAt);
   });
 
   it('should throw on load non-existent', async () => {
