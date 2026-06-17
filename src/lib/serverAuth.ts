@@ -1,11 +1,20 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import type { NextRequest } from 'next/server';
 
-/** Service-role Supabase client (server-only, bypasses RLS). */
-export const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+let client: SupabaseClient | undefined;
+
+/** Service-role Supabase client (server-only, bypasses RLS). Lazily created so a build without env vars (e.g. CI collecting page data) doesn't crash — only fails if actually invoked at runtime without config. */
+export const supabaseAdmin: SupabaseClient = new Proxy({} as SupabaseClient, {
+  get(_target, prop) {
+    if (!client) {
+      client = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
+    }
+    return client[prop as keyof SupabaseClient];
+  },
+});
 
 /**
  * Decode the phase 1.5 custom token from the Authorization header.
