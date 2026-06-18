@@ -1,7 +1,13 @@
 import { buildSystemPrompt } from "@/lib/tutor";
+import { checkRateLimit, getClientIp } from "@/lib/rateLimit";
 import type { Lesson } from "@/lib/lessons";
 
 export async function POST(req: Request) {
+  const ip = getClientIp(req);
+  if (!checkRateLimit(`tutor:${ip}`, 15, 60_000)) {
+    return Response.json({ error: "Too many questions, slow down and try again in a minute." }, { status: 429 });
+  }
+
   const { question, lesson, concept } = (await req.json()) as {
     question: string;
     lesson: Lesson;
@@ -21,7 +27,7 @@ export async function POST(req: Request) {
     headers: {
       "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
       "Content-Type": "application/json",
-      "HTTP-Referer": "http://localhost:3000",
+      "HTTP-Referer": process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000",
       "X-Title": "AI Agents from Scratch",
     },
     body: JSON.stringify({

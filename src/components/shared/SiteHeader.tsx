@@ -9,6 +9,7 @@ import { WalletButton } from '@/components/auth/WalletButton';
 const NAV = [
   { href: '/learn', label: 'Learn' },
   { href: '/agents', label: 'My Agents' },
+  { href: '/marketplace', label: 'Marketplace' },
   { href: '/docs', label: 'Docs' },
 ];
 

@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
-import { mockLLM } from '@/lib/mockLLM';
+import { runAgent } from '@/lib/runAgent';
 
 type PublicAgent = {
   id: string;
@@ -42,7 +42,7 @@ export default function PublicAgentPage() {
     try {
       const promptMatch = agent.code.match(/['"`](.*?)['"`]/);
       const prompt = promptMatch ? promptMatch[1] : 'What should I do?';
-      const result = await mockLLM(agent.lesson_id, prompt);
+      const result = await runAgent(agent.lesson_id, agent.code, prompt);
       setOutput(result);
     } catch (e) {
       setOutput(`Error: ${e instanceof Error ? e.message : String(e)}`);

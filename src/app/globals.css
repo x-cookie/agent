@@ -186,6 +186,7 @@ body {
   vertical-align: middle;
 }
 @keyframes blink-cursor { 0%,100% { opacity: 1; } 50% { opacity: 0; } }
+@keyframes pulse { 0%,100% { opacity: 0.5; } 50% { opacity: 1; } }
 
 /* ── Spinner for send button while loading ───────────────────── */
 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }

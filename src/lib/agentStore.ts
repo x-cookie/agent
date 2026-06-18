@@ -1,3 +1,5 @@
+export type AgentSource = 'created' | 'forked_free' | 'purchased';
+
 export type SavedAgent = {
   id: string;
   name: string;
@@ -5,6 +7,7 @@ export type SavedAgent = {
   code: string;
   createdAt: number;
   updatedAt: number;
+  source: AgentSource;
 };
 
 export type AgentStoreBackend = 'localStorage' | 'api';
@@ -20,6 +23,7 @@ function fromApiRow(row: {
   code: string;
   created_at: string;
   updated_at: string;
+  source?: AgentSource;
 }): SavedAgent {
   return {
     id: row.id,
@@ -28,6 +32,7 @@ function fromApiRow(row: {
     code: row.code,
     createdAt: new Date(row.created_at).getTime(),
     updatedAt: new Date(row.updated_at).getTime(),
+    source: row.source ?? 'created',
   };
 }
 
@@ -48,7 +53,7 @@ export class AgentStore {
     return this.listLocalStorage();
   }
 
-  async save(agent: Omit<SavedAgent, 'id' | 'createdAt' | 'updatedAt'>): Promise<SavedAgent> {
+  async save(agent: { name: string; lessonId: string; code: string }): Promise<SavedAgent> {
     if (typeof window === 'undefined') throw new Error('save() requires browser');
     if (this.backend === 'api') return this.saveApi(agent);
     return this.saveLocalStorage(agent);
@@ -72,6 +77,13 @@ export class AgentStore {
     return this.renameLocalStorage(id, newName);
   }
 
+  /** Overwrite an existing agent's name/code (used when re-saving a loaded agent). */
+  async update(id: string, changes: { name?: string; code?: string }): Promise<SavedAgent> {
+    if (typeof window === 'undefined') throw new Error('update() requires browser');
+    if (this.backend === 'api') return this.updateApi(id, changes);
+    return this.updateLocalStorage(id, changes);
+  }
+
   // API backend (phase 1.5: logged in via Phantom)
   private authHeaders(): HeadersInit {
     return {
@@ -87,7 +99,7 @@ export class AgentStore {
     return Array.isArray(rows) ? rows.map(fromApiRow) : [];
   }
 
-  private async saveApi(agent: Omit<SavedAgent, 'id' | 'createdAt' | 'updatedAt'>): Promise<SavedAgent> {
+  private async saveApi(agent: { name: string; lessonId: string; code: string }): Promise<SavedAgent> {
     const res = await fetch('/api/agents', {
       method: 'POST',
       headers: this.authHeaders(),
@@ -121,6 +133,16 @@ export class AgentStore {
     return fromApiRow(await res.json());
   }
 
+  private async updateApi(id: string, changes: { name?: string; code?: string }): Promise<SavedAgent> {
+    const res = await fetch(`/api/agents/${id}`, {
+      method: 'PATCH',
+      headers: this.authHeaders(),
+      body: JSON.stringify(changes),
+    });
+    if (!res.ok) throw new Error('Failed to update agent');
+    return fromApiRow(await res.json());
+  }
+
   // localStorage backend
   private listLocalStorage(): SavedAgent[] {
     try {
@@ -131,13 +153,14 @@ export class AgentStore {
     }
   }
 
-  private saveLocalStorage(agent: Omit<SavedAgent, 'id' | 'createdAt' | 'updatedAt'>): SavedAgent {
+  private saveLocalStorage(agent: { name: string; lessonId: string; code: string }): SavedAgent {
     const agents = this.listLocalStorage();
     const newAgent: SavedAgent = {
       ...agent,
       id: crypto.randomUUID(),
       createdAt: Date.now(),
       updatedAt: Date.now(),
+      source: 'created',
     };
     agents.push(newAgent);
     try {
@@ -166,6 +189,19 @@ export class AgentStore {
     const agent = agents.find(a => a.id === id);
     if (!agent) throw new Error(`Agent ${id} not found`);
     agent.name = newName;
+    agent.updatedAt = Date.now();
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(agents));
+    } catch {}
+    return agent;
+  }
+
+  private updateLocalStorage(id: string, changes: { name?: string; code?: string }): SavedAgent {
+    const agents = this.listLocalStorage();
+    const agent = agents.find(a => a.id === id);
+    if (!agent) throw new Error(`Agent ${id} not found`);
+    if (changes.name !== undefined) agent.name = changes.name;
+    if (changes.code !== undefined) agent.code = changes.code;
     agent.updatedAt = Date.now();
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(agents));

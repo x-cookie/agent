@@ -4,6 +4,7 @@ import { GeistMono } from "geist/font/mono";
 import "./globals.css";
 import { PageTransition } from "@/components/shared/PageTransition";
 import { AuthProvider } from "@/hooks/useAuth";
+import { ToastProvider } from "@/components/shared/Toast";
 
 export const metadata: Metadata = {
   title: "agent",
@@ -18,7 +19,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body>
         <AuthProvider>
-          <PageTransition>{children}</PageTransition>
+          <ToastProvider>
+            <PageTransition>{children}</PageTransition>
+          </ToastProvider>
         </AuthProvider>
       </body>
     </html>

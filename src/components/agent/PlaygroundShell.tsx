@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { agentStore } from '@/lib/agentStore';
-import { mockLLM } from '@/lib/mockLLM';
+import { runAgent } from '@/lib/runAgent';
 import type { Lesson } from '@/lib/lessons';
 
 interface PlaygroundShellProps {
@@ -12,12 +13,36 @@ interface PlaygroundShellProps {
 }
 
 export function PlaygroundShell({ lesson, baseCode, onSave }: PlaygroundShellProps) {
+  const searchParams = useSearchParams();
+  const loadAgentId = searchParams.get('loadAgent');
+
   const [code, setCode] = useState(baseCode);
   const [output, setOutput] = useState('');
   const [isRunning, setIsRunning] = useState(false);
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [agentName, setAgentName] = useState(`${lesson.title} v1`);
   const [saveStatus, setSaveStatus] = useState<string>('');
+  const [loadingAgent, setLoadingAgent] = useState(!!loadAgentId);
+  const [loadedAgentName, setLoadedAgentName] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!loadAgentId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const saved = await agentStore.load(loadAgentId);
+        if (cancelled) return;
+        setCode(saved.code);
+        setAgentName(saved.name);
+        setLoadedAgentName(saved.name);
+      } catch (e) {
+        console.error('Failed to load saved agent:', e);
+      } finally {
+        if (!cancelled) setLoadingAgent(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [loadAgentId]);
 
   const handleRun = async () => {
     setIsRunning(true);
@@ -27,8 +52,7 @@ export function PlaygroundShell({ lesson, baseCode, onSave }: PlaygroundShellPro
       const promptMatch = code.match(/['"`](.*?)['"`]/); // Simple extraction
       const prompt = promptMatch ? promptMatch[1] : 'What should I do?';
 
-      // Call mockLLM
-      const result = await mockLLM(lesson.id, prompt);
+      const result = await runAgent(lesson.id, code, prompt);
       setOutput(result);
     } catch (e) {
       setOutput(`Error: ${e instanceof Error ? e.message : String(e)}`);
@@ -37,22 +61,20 @@ export function PlaygroundShell({ lesson, baseCode, onSave }: PlaygroundShellPro
     }
   };
 
-  const handleSaveAgent = async () => {
+  const handleSaveAgent = async (asNew: boolean) => {
     if (!agentName.trim()) {
       setSaveStatus('Agent name required');
       return;
     }
     try {
-      const saved = await agentStore.save({
-        name: agentName.trim(),
-        lessonId: lesson.id,
-        code,
-      });
-      setSaveStatus(`✓ Agent saved: ${saved.name}`);
+      const saved = !asNew && loadAgentId
+        ? await agentStore.update(loadAgentId, { name: agentName.trim(), code })
+        : await agentStore.save({ name: agentName.trim(), lessonId: lesson.id, code });
+      setSaveStatus(asNew || !loadAgentId ? `✓ Agent saved: ${saved.name}` : `✓ Updated: ${saved.name}`);
       setTimeout(() => {
         setShowSaveModal(false);
         setSaveStatus('');
-        setAgentName(`${lesson.title} v1`);
+        if (asNew) setAgentName(`${lesson.title} v1`);
       }, 1500);
     } catch (e) {
       setSaveStatus(`Error: ${e instanceof Error ? e.message : String(e)}`);
@@ -62,10 +84,17 @@ export function PlaygroundShell({ lesson, baseCode, onSave }: PlaygroundShellPro
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: '12px' }}>
       {/* Toolbar */}
-      <div style={{ display: 'flex', gap: '8px', alignItems: 'center', padding: '0 26px' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '0 26px' }}>
+        {loadedAgentName && (
+          <span style={{ fontSize: '11px', color: 'var(--t3)', fontFamily: 'var(--mono)' }}>
+            <i className="ti ti-folder-open" style={{ fontSize: '12px', verticalAlign: 'middle', marginRight: '4px' }} aria-hidden />
+            {loadedAgentName}
+          </span>
+        )}
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
         <button
           onClick={handleRun}
-          disabled={isRunning}
+          disabled={isRunning || loadingAgent}
           style={{
             display: 'inline-flex',
             alignItems: 'center',
@@ -102,6 +131,7 @@ export function PlaygroundShell({ lesson, baseCode, onSave }: PlaygroundShellPro
           <i className="ti ti-device-floppy" style={{ fontSize: '13px' }} aria-hidden />
           Save Agent
         </button>
+        </div>
       </div>
 
       {/* Editor + Console split */}
@@ -120,8 +150,9 @@ export function PlaygroundShell({ lesson, baseCode, onSave }: PlaygroundShellPro
             Code Editor
           </div>
           <textarea
-            value={code}
+            value={loadingAgent ? 'Loading saved agent…' : code}
             onChange={e => setCode(e.target.value)}
+            disabled={loadingAgent}
             style={{
               flex: 1,
               padding: '12px',
@@ -226,20 +257,37 @@ export function PlaygroundShell({ lesson, baseCode, onSave }: PlaygroundShellPro
               </div>
             )}
             <div style={{ display: 'flex', gap: '8px' }}>
+              {loadAgentId && (
+                <button
+                  onClick={() => handleSaveAgent(false)}
+                  style={{
+                    flex: 1,
+                    padding: '8px',
+                    borderRadius: '4px',
+                    background: 'var(--acc)',
+                    color: '#000',
+                    border: 'none',
+                    fontWeight: 500,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Update
+                </button>
+              )}
               <button
-                onClick={handleSaveAgent}
+                onClick={() => handleSaveAgent(true)}
                 style={{
                   flex: 1,
                   padding: '8px',
                   borderRadius: '4px',
-                  background: 'var(--acc)',
-                  color: '#000',
-                  border: 'none',
+                  background: loadAgentId ? 'transparent' : 'var(--acc)',
+                  color: loadAgentId ? 'var(--t2)' : '#000',
+                  border: loadAgentId ? '0.5px solid var(--bd2)' : 'none',
                   fontWeight: 500,
                   cursor: 'pointer',
                 }}
               >
-                Save
+                {loadAgentId ? 'Save as new' : 'Save'}
               </button>
               <button
                 onClick={() => setShowSaveModal(false)}
