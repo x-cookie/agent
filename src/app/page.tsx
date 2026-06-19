@@ -140,6 +140,7 @@ export default function LandingPage() {
               { href: "/learn", label: "Learn" },
               { href: "/agents", label: "My Agents" },
               { href: "/marketplace", label: "Marketplace" },
+              { href: "/battle", label: "Battle" },
               { href: "/docs",  label: "Docs"    },
             ].map(l => (
               <Link key={l.href} href={l.href} style={{ fontSize: "13px", fontWeight: 500, color: "var(--t2)", textDecoration: "none", padding: "6px 14px", borderRadius: "5px", border: "0.5px solid transparent", transition: "color 0.15s" }}>
