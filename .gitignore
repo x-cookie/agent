@@ -40,6 +40,9 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# internal planning/process docs — not part of the shipped product
+/docs/
+
 # zauth — internal guides, AI artifacts, and reference files
 ZAUTH-GUIDE.md
 CLAUDE.md

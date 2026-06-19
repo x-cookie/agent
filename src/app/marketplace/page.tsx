@@ -14,7 +14,7 @@ type Listing = {
   price_lamports: number;
   description: string | null;
   created_at: string;
-  agent: { id: string; name: string; lesson_id: string; code_preview: string; code_truncated: boolean } | null;
+  agent: { id: string; name: string; lesson_id: string; code_preview: string; code_truncated: boolean; wins: number; losses: number } | null;
   run_count: number;
 };
 
@@ -276,12 +276,20 @@ function ListingCard({ listing }: { listing: Listing }) {
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '10px', color: 'var(--t4)', fontFamily: 'var(--mono)' }}>
         <span>by {listing.seller_wallet.slice(0, 8)}…{listing.seller_wallet.slice(-8)}</span>
-        {listing.run_count > 0 && (
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', color: 'var(--t3)' }}>
-            <i className="ti ti-player-play" style={{ fontSize: '10px' }} aria-hidden />
-            {listing.run_count} {listing.run_count === 1 ? 'run' : 'runs'}
-          </span>
-        )}
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '10px' }}>
+          {listing.agent && listing.agent.wins + listing.agent.losses > 0 && (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', color: 'var(--acc)' }}>
+              <i className="ti ti-sword" style={{ fontSize: '10px' }} aria-hidden />
+              {Math.round((listing.agent.wins / (listing.agent.wins + listing.agent.losses)) * 100)}% win rate
+            </span>
+          )}
+          {listing.run_count > 0 && (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', color: 'var(--t3)' }}>
+              <i className="ti ti-player-play" style={{ fontSize: '10px' }} aria-hidden />
+              {listing.run_count} {listing.run_count === 1 ? 'run' : 'runs'}
+            </span>
+          )}
+        </span>
       </div>
 
       <button

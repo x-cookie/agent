@@ -16,7 +16,7 @@ export async function GET() {
     const agentIds = listings.map(l => l.agent_id);
     const { data: agents, error: agentsError } = await supabaseAdmin
       .from('agents')
-      .select('id, name, lesson_id, code')
+      .select('id, name, lesson_id, code, wins, losses')
       .in('id', agentIds);
 
     if (agentsError) throw agentsError;
@@ -24,7 +24,7 @@ export async function GET() {
     // Only ever expose a capped preview slice of the code — full code is gated behind purchase/fork.
     const agentById = new Map((agents ?? []).map(a => {
       const previewLen = Math.min(600, Math.floor(a.code.length * 0.3));
-      return [a.id, { id: a.id, name: a.name, lesson_id: a.lesson_id, code_preview: a.code.slice(0, previewLen), code_truncated: previewLen < a.code.length }];
+      return [a.id, { id: a.id, name: a.name, lesson_id: a.lesson_id, code_preview: a.code.slice(0, previewLen), code_truncated: previewLen < a.code.length, wins: a.wins, losses: a.losses }];
     }));
     const { data: logs } = await supabaseAdmin
       .from('execution_logs')

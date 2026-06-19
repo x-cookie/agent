@@ -7,6 +7,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { getLessonByFolder } from '@/lib/lessons';
 import { registerLineageOnChain } from '@/lib/lineage';
 import { useToast } from '@/components/shared/Toast';
+import { AgentBattleHistoryModal } from '@/components/battle/AgentBattleHistoryModal';
 
 export function MyAgentsPage() {
   const { user, loading: authLoading } = useAuth();
@@ -434,6 +435,7 @@ function AgentCard({ agent, onUpdate, canDeploy }: { agent: SavedAgent; onUpdate
               )}
             </div>
           )}
+          <BattleHistory agentId={agent.id} agentName={agent.name} authHeaders={authHeaders} />
         </div>
       ) : (
         <div style={{ display: 'flex', gap: '6px' }}>
@@ -511,6 +513,32 @@ function AgentCard({ agent, onUpdate, canDeploy }: { agent: SavedAgent; onUpdate
         </div>
       )}
     </div>
+  );
+}
+
+function BattleHistory({ agentId, agentName, authHeaders }: { agentId: string; agentName: string; authHeaders: () => HeadersInit }) {
+  const [battleCount, setBattleCount] = useState<number | null>(null);
+  const [showModal, setShowModal] = useState(false);
+
+  useEffect(() => {
+    fetch(`/api/agents/${agentId}/battles`, { headers: authHeaders() })
+      .then(res => (res.ok ? res.json() : []))
+      .then(data => setBattleCount(Array.isArray(data) ? data.length : 0))
+      .catch(() => setBattleCount(0));
+  }, [agentId]);
+
+  if (!battleCount) return null;
+
+  return (
+    <>
+      <button onClick={() => setShowModal(true)} style={{ ...cardGhostBtn, width: '100%' }}>
+        <i className="ti ti-sword" style={{ fontSize: '12px' }} aria-hidden />
+        Battle history ({battleCount})
+      </button>
+      {showModal && (
+        <AgentBattleHistoryModal agentId={agentId} agentName={agentName} onClose={() => setShowModal(false)} />
+      )}
+    </>
   );
 }
 
