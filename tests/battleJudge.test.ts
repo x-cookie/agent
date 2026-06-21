@@ -19,7 +19,8 @@ describe('parseJudgeResponse', () => {
   it('falls back to tie with a generic reasoning when the response has no valid JSON', () => {
     const result = parseJudgeResponse('The model refused to answer.');
     expect(result.winner).toBe('tie');
-    expect(result.reasoning).toBe('Judge response could not be parsed.');
+    expect(typeof result.reasoning).toBe('string');
+    expect(result.reasoning.length).toBeGreaterThan(0);
   });
 
   it('falls back to tie when winner field is not a/b/tie', () => {

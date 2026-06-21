@@ -46,21 +46,70 @@ export async function callAgentForScenario(lessonId: string, code: string, scena
 
 const REASONING_KEYS = ['reasoning', 'reason', 'explanation', 'rationale', 'justification'];
 
+function stripMarkdown(text: string): string {
+  return text
+    .replace(/```[\s\S]*?```/g, '')   // code fences
+    .replace(/`[^`]*`/g, '')          // inline code
+    .replace(/\*\*([^*]+)\*\*/g, '$1') // bold
+    .replace(/\*([^*]+)\*/g, '$1')    // italic
+    .replace(/^#+\s*/gm, '')          // headings
+    .replace(/\n{3,}/g, '\n\n')       // excess newlines
+    .trim();
+}
+
+function resolveWinner(raw: string, nameA: string, nameB: string): 'a' | 'b' | 'tie' | null {
+  const lower = raw.toLowerCase();
+  const nA = nameA.toLowerCase();
+  const nB = nameB.toLowerCase();
+  const hitsA = [
+    'winner: a', '"winner":"a"', '"winner": "a"', 'winner is a', 'agent a wins', 'agent a is the winner',
+    `winner: ${nA}`, `${nA} wins`, `${nA} is the winner`, `winner is ${nA}`,
+  ].filter(p => lower.includes(p)).length;
+  const hitsB = [
+    'winner: b', '"winner":"b"', '"winner": "b"', 'winner is b', 'agent b wins', 'agent b is the winner',
+    `winner: ${nB}`, `${nB} wins`, `${nB} is the winner`, `winner is ${nB}`,
+  ].filter(p => lower.includes(p)).length;
+  if (hitsA > hitsB) return 'a';
+  if (hitsB > hitsA) return 'b';
+  return null;
+}
+
 /** Extract { winner, reasoning } from a judge model's raw text response. */
-export function parseJudgeResponse(raw: string): { winner: 'a' | 'b' | 'tie'; reasoning: string } {
+export function parseJudgeResponse(
+  raw: string,
+  agentNames?: { nameA: string; nameB: string }
+): { winner: 'a' | 'b' | 'tie'; reasoning: string } {
   const jsonMatch = raw.match(/\{[\s\S]*\}/);
   if (jsonMatch) {
     try {
       const parsed = JSON.parse(jsonMatch[0]);
-      const winner = parsed.winner === 'a' || parsed.winner === 'b' || parsed.winner === 'tie' ? parsed.winner : 'tie';
+      // Accept 'a'/'b'/'tie' directly, or resolve from agent name if model used the full name
+      let winner: 'a' | 'b' | 'tie' = 'tie';
+      if (parsed.winner === 'a' || parsed.winner === 'b') {
+        winner = parsed.winner;
+      } else if (agentNames && typeof parsed.winner === 'string') {
+        const v = parsed.winner.toLowerCase();
+        if (v.includes(agentNames.nameA.toLowerCase())) winner = 'a';
+        else if (v.includes(agentNames.nameB.toLowerCase())) winner = 'b';
+        else if (v === 'agent a') winner = 'a';
+        else if (v === 'agent b') winner = 'b';
+      }
       const reasoningKey = REASONING_KEYS.find(key => typeof parsed[key] === 'string');
-      const reasoning = reasoningKey ? parsed[reasoningKey] : 'No reasoning provided.';
+      const rawReasoning = reasoningKey ? parsed[reasoningKey] : '';
+      const reasoning = rawReasoning ? stripMarkdown(rawReasoning) : 'No reasoning provided.';
       return { winner, reasoning };
     } catch {
-      // fall through to the generic failure below
+      // fall through
     }
   }
-  return { winner: 'tie', reasoning: 'Judge response could not be parsed.' };
+  // Text-based fallback — use agent names if provided
+  const nameA = agentNames?.nameA ?? 'agent a';
+  const nameB = agentNames?.nameB ?? 'agent b';
+  const textWinner = resolveWinner(raw, nameA, nameB);
+  if (textWinner) {
+    return { winner: textWinner, reasoning: stripMarkdown(raw).slice(0, 500) };
+  }
+  return { winner: 'tie', reasoning: raw.length > 20 ? stripMarkdown(raw).slice(0, 500) : 'No verdict could be determined.' };
 }
 
 /** Ask the LLM to judge which of two agent outputs better handles the scenario. */
@@ -78,5 +127,5 @@ Respond with ONLY a JSON object, no other text before or after it. Use exactly t
 Example of a valid response: {"winner": "a", "reasoning": "Agent A gave a more structured, concrete plan while Agent B's answer was vague."}`;
   const userPrompt = `Scenario:\n${scenario}\n\nAgent A (${agentAName}):\n${outputA}\n\nAgent B (${agentBName}):\n${outputB}`;
   const raw = await callOpenRouterRaw(systemPrompt, userPrompt);
-  return parseJudgeResponse(raw);
+  return parseJudgeResponse(raw, { nameA: agentAName, nameB: agentBName });
 }
