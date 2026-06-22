@@ -53,8 +53,11 @@ export async function POST(
       .single();
     if (agentError || !agent) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
-    const { priceLamports, description, lineageTx } = await req.json();
-    const price = Number.isFinite(priceLamports) ? Math.max(0, Math.floor(priceLamports)) : 0;
+    const { priceUsd, payoutEvmAddress, description, lineageTx } = await req.json();
+    const price = Number.isFinite(priceUsd) ? Math.max(0, Number(priceUsd)) : 0;
+    if (price > 0 && !/^0x[a-fA-F0-9]{40}$/.test(payoutEvmAddress || '')) {
+      return NextResponse.json({ error: 'Connect a Phantom EVM (Base) wallet to receive USDC payouts for a paid listing' }, { status: 400 });
+    }
 
     if (!agent.lineage_tx && lineageTx) {
       await supabaseAdmin.from('agents').update({ lineage_tx: lineageTx }).eq('id', id);
@@ -69,7 +72,7 @@ export async function POST(
     if (existing) {
       const { data, error } = await supabaseAdmin
         .from('marketplace_listings')
-        .update({ price_lamports: price, description, is_active: true, seller_wallet: auth.wallet })
+        .update({ price_usd: price, payout_evm_address: payoutEvmAddress || null, description, is_active: true, seller_wallet: auth.wallet })
         .eq('agent_id', id)
         .select()
         .single();
@@ -79,7 +82,7 @@ export async function POST(
 
     const { data, error } = await supabaseAdmin
       .from('marketplace_listings')
-      .insert([{ agent_id: id, seller_wallet: auth.wallet, price_lamports: price, description }])
+      .insert([{ agent_id: id, seller_wallet: auth.wallet, price_usd: price, payout_evm_address: payoutEvmAddress || null, description }])
       .select()
       .single();
     if (error) throw error;

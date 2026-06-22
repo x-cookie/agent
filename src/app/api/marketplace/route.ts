@@ -1,12 +1,13 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/serverAuth';
+import { estimateMarketValue, isVerifiedPerformance } from '@/lib/agentStats';
 
 // GET /api/marketplace — browse active listings (public, no auth)
 export async function GET() {
   try {
     const { data: listings, error } = await supabaseAdmin
       .from('marketplace_listings')
-      .select('*')
+      .select('id, agent_id, seller_wallet, price_usd, payout_evm_address, description, created_at')
       .eq('is_active', true)
       .order('created_at', { ascending: false });
 
@@ -16,7 +17,7 @@ export async function GET() {
     const agentIds = listings.map(l => l.agent_id);
     const { data: agents, error: agentsError } = await supabaseAdmin
       .from('agents')
-      .select('id, name, lesson_id, code, wins, losses')
+      .select('id, name, lesson_id, code, wins, losses, power, intel, reputation, xp, level, lineage_tx')
       .in('id', agentIds);
 
     if (agentsError) throw agentsError;
@@ -24,7 +25,19 @@ export async function GET() {
     // Only ever expose a capped preview slice of the code — full code is gated behind purchase/fork.
     const agentById = new Map((agents ?? []).map(a => {
       const previewLen = Math.min(600, Math.floor(a.code.length * 0.3));
-      return [a.id, { id: a.id, name: a.name, lesson_id: a.lesson_id, code_preview: a.code.slice(0, previewLen), code_truncated: previewLen < a.code.length, wins: a.wins, losses: a.losses }];
+      return [a.id, {
+        id: a.id,
+        name: a.name,
+        lesson_id: a.lesson_id,
+        code_preview: a.code.slice(0, previewLen),
+        code_truncated: previewLen < a.code.length,
+        wins: a.wins,
+        losses: a.losses,
+        level: a.level,
+        reputation: a.reputation,
+        market_value: estimateMarketValue(a),
+        verified: isVerifiedPerformance(a),
+      }];
     }));
     const { data: logs } = await supabaseAdmin
       .from('execution_logs')

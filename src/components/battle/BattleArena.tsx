@@ -123,6 +123,9 @@ export function BattleArena() {
         showToast(`Added a free copy of "${agentBName}" to My Agents`);
         refreshAgents();
       }
+      if (data.levelUp) {
+        showToast(`⚡ "${data.levelUp.agentName}" leveled up to LVL ${data.levelUp.newLevel}!`);
+      }
     } catch (e) {
       showToast(e instanceof Error ? e.message : 'Battle failed', 'error');
     } finally {

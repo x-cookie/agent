@@ -3,6 +3,7 @@ import { supabaseAdmin, getUserFromRequest } from '@/lib/serverAuth';
 import { checkRateLimit, getClientIp } from '@/lib/rateLimit';
 import { callAgentForScenario, judgeBattle } from '@/lib/battleJudge';
 import { recordBattleProof } from '@/lib/serverWallet';
+import { awardAgentXp } from '@/lib/agentStats';
 
 const DEFAULT_SCENARIO =
   'A user asks: "I need to decide between two approaches under uncertainty and a tight deadline — walk me through how you would handle this." Respond as your agent would.';
@@ -100,12 +101,16 @@ export async function POST(req: NextRequest) {
       .single();
     if (insertError) throw insertError;
 
+    let levelUp: { agentId: string; agentName: string; newLevel: number } | undefined;
     if (winnerAgentId) {
       const loserAgentId = winnerAgentId === agentA.id ? agentB.id : agentA.id;
       const winnerRow = winnerAgentId === agentA.id ? agentA : agentB;
       const loserRow = winnerAgentId === agentA.id ? agentB : agentA;
       await supabaseAdmin.from('agents').update({ wins: (winnerRow.wins ?? 0) + 1 }).eq('id', winnerAgentId);
       await supabaseAdmin.from('agents').update({ losses: (loserRow.losses ?? 0) + 1 }).eq('id', loserAgentId);
+      const winnerXp = await awardAgentXp(winnerAgentId, { xp: 20, power: 2 });
+      await awardAgentXp(loserAgentId, { xp: 5 });
+      if (winnerXp?.leveledUp) levelUp = { agentId: winnerAgentId, agentName: winnerRow.name, newLevel: winnerXp.newLevel };
     }
 
     let proofTx: string | undefined;
@@ -127,6 +132,7 @@ export async function POST(req: NextRequest) {
       reasoning,
       proofTx,
       forkedAgentId,
+      levelUp,
     });
   } catch (error) {
     console.error('POST /api/battles error:', error);

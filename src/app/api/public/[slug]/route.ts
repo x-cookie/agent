@@ -10,7 +10,7 @@ export async function GET(
   try {
     const { data: deployment, error: deployError } = await supabaseAdmin
       .from('deployments')
-      .select('agent_id, is_public')
+      .select('agent_id, is_public, price_usd')
       .eq('public_url', slug)
       .eq('is_public', true)
       .single();
@@ -29,7 +29,7 @@ export async function GET(
       return NextResponse.json({ error: 'Agent not found' }, { status: 404 });
     }
 
-    return NextResponse.json(agent);
+    return NextResponse.json({ ...agent, price_usd: deployment.price_usd });
   } catch (error) {
     console.error('GET /api/public/[slug] error:', error);
     return NextResponse.json(

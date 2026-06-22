@@ -91,6 +91,48 @@ export async function POST(
   }
 }
 
+// PATCH /api/agents/[id]/deploy — set the USDC price (x402) for a deployed agent
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
+  try {
+    const auth = getUserFromRequest(req);
+    if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+    const { priceUsd } = await req.json();
+    const price = Number(priceUsd);
+    if (!Number.isFinite(price) || price < 0) {
+      return NextResponse.json({ error: 'Invalid price' }, { status: 400 });
+    }
+
+    const { data: agent, error: agentError } = await supabaseAdmin
+      .from('agents')
+      .select('id')
+      .eq('id', id)
+      .eq('user_id', auth.userId)
+      .single();
+    if (agentError || !agent) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+
+    const { data, error } = await supabaseAdmin
+      .from('deployments')
+      .update({ price_usd: price })
+      .eq('agent_id', id)
+      .select()
+      .single();
+    if (error) throw error;
+
+    return NextResponse.json(data);
+  } catch (error) {
+    console.error('PATCH /api/agents/[id]/deploy error:', error);
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Failed to update price' },
+      { status: 500 }
+    );
+  }
+}
+
 // DELETE /api/agents/[id]/deploy — unpublish agent
 export async function DELETE(
   req: NextRequest,

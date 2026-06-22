@@ -8,6 +8,11 @@ export type SavedAgent = {
   createdAt: number;
   updatedAt: number;
   source: AgentSource;
+  power: number;
+  intel: number;
+  reputation: number;
+  xp: number;
+  level: number;
 };
 
 export type AgentStoreBackend = 'localStorage' | 'api';
@@ -24,6 +29,11 @@ function fromApiRow(row: {
   created_at: string;
   updated_at: string;
   source?: AgentSource;
+  power?: number;
+  intel?: number;
+  reputation?: number;
+  xp?: number;
+  level?: number;
 }): SavedAgent {
   return {
     id: row.id,
@@ -33,6 +43,11 @@ function fromApiRow(row: {
     createdAt: new Date(row.created_at).getTime(),
     updatedAt: new Date(row.updated_at).getTime(),
     source: row.source ?? 'created',
+    power: row.power ?? 10,
+    intel: row.intel ?? 10,
+    reputation: row.reputation ?? 0,
+    xp: row.xp ?? 0,
+    level: row.level ?? 1,
   };
 }
 
@@ -161,6 +176,11 @@ export class AgentStore {
       createdAt: Date.now(),
       updatedAt: Date.now(),
       source: 'created',
+      power: 10,
+      intel: 10,
+      reputation: 0,
+      xp: 0,
+      level: 1,
     };
     agents.push(newAgent);
     try {

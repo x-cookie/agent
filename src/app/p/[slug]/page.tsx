@@ -4,13 +4,14 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
-import { runAgent } from '@/lib/runAgent';
+import { runWithX402Payment } from '@/lib/payX402';
 
 type PublicAgent = {
   id: string;
   name: string;
   lesson_id: string;
   code: string;
+  price_usd: number;
 };
 
 export default function PublicAgentPage() {
@@ -20,6 +21,14 @@ export default function PublicAgentPage() {
   const [loading, setLoading] = useState(true);
   const [output, setOutput] = useState('');
   const [isRunning, setIsRunning] = useState(false);
+  const [copiedCode, setCopiedCode] = useState(false);
+  const [copiedOutput, setCopiedOutput] = useState(false);
+
+  const copyText = (text: string, mark: (v: boolean) => void) => {
+    navigator.clipboard.writeText(text);
+    mark(true);
+    setTimeout(() => mark(false), 1500);
+  };
 
   useEffect(() => {
     fetch(`/api/public/${slug}`)
@@ -38,12 +47,12 @@ export default function PublicAgentPage() {
   const handleRun = async () => {
     if (!agent) return;
     setIsRunning(true);
-    setOutput('Executing code...\n');
+    setOutput(agent.price_usd > 0 ? `Requesting payment (~$${agent.price_usd} USDC via Phantom)...\n` : 'Executing code...\n');
     try {
       const promptMatch = agent.code.match(/['"`](.*?)['"`]/);
       const prompt = promptMatch ? promptMatch[1] : 'What should I do?';
-      const result = await runAgent(agent.lesson_id, agent.code, prompt);
-      setOutput(result);
+      const { output } = await runWithX402Payment(`/api/public/${slug}/run`, { prompt });
+      setOutput(output);
     } catch (e) {
       setOutput(`Error: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
@@ -109,22 +118,42 @@ export default function PublicAgentPage() {
                 }}
               >
                 <i className="ti ti-player-play" style={{ fontSize: '13px' }} aria-hidden />
-                {isRunning ? 'Running...' : 'Run agent'}
+                {isRunning ? 'Running...' : agent.price_usd > 0 ? `Run agent — $${agent.price_usd} USDC` : 'Run agent'}
               </button>
+              {agent.price_usd > 0 && (
+                <span style={{ fontSize: '11px', color: 'var(--t3)', alignSelf: 'center', fontFamily: 'var(--mono)' }}>
+                  Pay with Phantom (Base Sepolia)
+                </span>
+              )}
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
               <div style={{ border: '0.5px solid var(--bd2)', borderRadius: '6px', overflow: 'hidden' }}>
-                <div style={{ fontSize: '10px', color: 'var(--t3)', padding: '6px 10px', background: 'var(--bg2)', borderBottom: '0.5px solid var(--bd2)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '10px', color: 'var(--t3)', padding: '6px 10px', background: 'var(--bg2)', borderBottom: '0.5px solid var(--bd2)' }}>
                   Code (read-only)
+                  <button
+                    onClick={() => copyText(agent.code, setCopiedCode)}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '10px', color: copiedCode ? 'var(--green)' : 'var(--t3)', background: 'transparent', border: 'none', cursor: 'pointer', fontFamily: 'var(--mono)' }}
+                  >
+                    <i className="ti ti-copy" style={{ fontSize: '12px' }} aria-hidden />
+                    {copiedCode ? 'Copied!' : 'Copy'}
+                  </button>
                 </div>
                 <pre style={{ margin: 0, padding: '12px', background: 'var(--bg)', color: 'var(--t2)', fontFamily: 'var(--mono)', fontSize: '11px', overflow: 'auto', maxHeight: '420px', whiteSpace: 'pre-wrap' }}>
                   {agent.code}
                 </pre>
               </div>
               <div style={{ border: '0.5px solid var(--bd2)', borderRadius: '6px', overflow: 'hidden' }}>
-                <div style={{ fontSize: '10px', color: 'var(--t3)', padding: '6px 10px', background: 'var(--bg2)', borderBottom: '0.5px solid var(--bd2)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '10px', color: 'var(--t3)', padding: '6px 10px', background: 'var(--bg2)', borderBottom: '0.5px solid var(--bd2)' }}>
                   Console Output
+                  <button
+                    onClick={() => copyText(output, setCopiedOutput)}
+                    disabled={!output}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '10px', color: copiedOutput ? 'var(--green)' : 'var(--t3)', background: 'transparent', border: 'none', cursor: output ? 'pointer' : 'not-allowed', fontFamily: 'var(--mono)' }}
+                  >
+                    <i className="ti ti-copy" style={{ fontSize: '12px' }} aria-hidden />
+                    {copiedOutput ? 'Copied!' : 'Copy'}
+                  </button>
                 </div>
                 <pre style={{ margin: 0, padding: '12px', background: 'var(--bg)', color: 'var(--t2)', fontFamily: 'var(--mono)', fontSize: '11px', overflow: 'auto', maxHeight: '420px', whiteSpace: 'pre-wrap' }}>
                   {output}

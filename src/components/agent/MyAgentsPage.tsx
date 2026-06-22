@@ -189,11 +189,17 @@ function AgentCard({ agent, onUpdate, canDeploy }: { agent: SavedAgent; onUpdate
   const [newName, setNewName] = useState(agent.name);
   const [busy, setBusy] = useState(false);
   const [deploySlug, setDeploySlug] = useState<string | null>(null);
+  const [deployPrice, setDeployPrice] = useState(0);
+  const [priceInput, setPriceInput] = useState('0');
+  const [priceSaved, setPriceSaved] = useState(false);
+  const [editingPrice, setEditingPrice] = useState(false);
   const [copyStatus, setCopyStatus] = useState<string | null>(null);
   const [isListed, setIsListed] = useState(false);
   const [showListModal, setShowListModal] = useState(false);
   const [listPrice, setListPrice] = useState('0');
   const [listDesc, setListDesc] = useState('');
+  const [payoutEvmAddress, setPayoutEvmAddress] = useState<string | null>(null);
+  const [connectingEvm, setConnectingEvm] = useState(false);
   const [lineageTx, setLineageTx] = useState<string | null>(null);
   const { showToast } = useToast();
 
@@ -207,11 +213,21 @@ function AgentCard({ agent, onUpdate, canDeploy }: { agent: SavedAgent; onUpdate
     if (!canDeploy) return;
     fetch(`/api/agents/${agent.id}/deploy`, { headers: authHeaders() })
       .then(res => (res.ok ? res.json() : null))
-      .then(d => setDeploySlug(d && d.is_public ? d.public_url : null))
+      .then(d => {
+        setDeploySlug(d && d.is_public ? d.public_url : null);
+        if (d) {
+          setDeployPrice(Number(d.price_usd) || 0);
+          setPriceInput(String(d.price_usd ?? '0'));
+        }
+      })
       .catch(() => {});
     fetch(`/api/agents/${agent.id}/list`, { headers: authHeaders() })
       .then(res => (res.ok ? res.json() : null))
-      .then(d => setIsListed(!!(d && d.is_active)))
+      .then(d => {
+        setIsListed(!!(d && d.is_active));
+        if (d?.payout_evm_address) setPayoutEvmAddress(d.payout_evm_address);
+        if (d?.price_usd) setListPrice(String(d.price_usd));
+      })
       .catch(() => {});
     fetch(`/api/agents/${agent.id}`, { headers: authHeaders() })
       .then(res => (res.ok ? res.json() : null))
@@ -226,8 +242,36 @@ function AgentCard({ agent, onUpdate, canDeploy }: { agent: SavedAgent; onUpdate
       if (!res.ok) throw new Error('Deploy failed');
       const data = await res.json();
       setDeploySlug(data.public_url);
+      setDeployPrice(Number(data.price_usd) || 0);
+      setPriceInput(String(data.price_usd ?? '0'));
     } catch (e) {
       console.error('Deploy failed:', e);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleSetPrice = async () => {
+    const price = parseFloat(priceInput || '0');
+    if (!Number.isFinite(price) || price < 0) {
+      showToast('Enter a valid price', 'error');
+      return;
+    }
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/agents/${agent.id}/deploy`, {
+        method: 'PATCH',
+        headers: authHeaders(),
+        body: JSON.stringify({ priceUsd: price }),
+      });
+      if (!res.ok) throw new Error('Failed to set price');
+      setDeployPrice(price);
+      setEditingPrice(false);
+      setPriceSaved(true);
+      setTimeout(() => setPriceSaved(false), 1500);
+    } catch (e) {
+      console.error('Set price failed:', e);
+      showToast(e instanceof Error ? e.message : 'Failed to set price', 'error');
     } finally {
       setBusy(false);
     }
@@ -254,7 +298,28 @@ function AgentCard({ agent, onUpdate, canDeploy }: { agent: SavedAgent; onUpdate
     setTimeout(() => setCopyStatus(null), 1500);
   };
 
+  const handleConnectEvm = async () => {
+    setConnectingEvm(true);
+    try {
+      const phantom = (window as any).phantom;
+      const provider = phantom?.ethereum || ((window as any).ethereum?.isPhantom ? (window as any).ethereum : null);
+      if (!provider) throw new Error('Phantom EVM wallet not found. Enable "Ethereum" networks in Phantom settings.');
+      const accounts: string[] = await provider.request({ method: 'eth_requestAccounts' });
+      if (!accounts[0]) throw new Error('No EVM account returned by Phantom');
+      setPayoutEvmAddress(accounts[0]);
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : 'Failed to connect Phantom EVM wallet', 'error');
+    } finally {
+      setConnectingEvm(false);
+    }
+  };
+
   const handleList = async () => {
+    const price = parseFloat(listPrice || '0');
+    if (price > 0 && !payoutEvmAddress) {
+      showToast('Connect a Phantom EVM (Base) wallet to receive USDC payouts first', 'error');
+      return;
+    }
     setBusy(true);
     try {
       let newLineageTx: string | undefined;
@@ -263,13 +328,12 @@ function AgentCard({ agent, onUpdate, canDeploy }: { agent: SavedAgent; onUpdate
         newLineageTx = await registerLineageOnChain(agent.id, agent.code);
       }
 
-      const priceLamports = Math.round(parseFloat(listPrice || '0') * 1_000_000_000);
       const res = await fetch(`/api/agents/${agent.id}/list`, {
         method: 'POST',
         headers: authHeaders(),
-        body: JSON.stringify({ priceLamports, description: listDesc.trim() || null, lineageTx: newLineageTx }),
+        body: JSON.stringify({ priceUsd: price, payoutEvmAddress, description: listDesc.trim() || null, lineageTx: newLineageTx }),
       });
-      if (!res.ok) throw new Error('List failed');
+      if (!res.ok) throw new Error((await res.json().catch(() => ({})))?.error || 'List failed');
       setIsListed(true);
       setShowListModal(false);
       if (newLineageTx) setLineageTx(newLineageTx);
@@ -349,6 +413,17 @@ function AgentCard({ agent, onUpdate, canDeploy }: { agent: SavedAgent; onUpdate
 
       <div>
         <h3 style={{ fontSize: '14px', fontWeight: 500, color: 'var(--t1)' }}>{agent.name}</h3>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '6px', flexWrap: 'wrap' }}>
+          <Link href={`/agents/${agent.id}`} style={{ fontSize: '9px', color: 'var(--t1)', fontFamily: 'var(--mono)', background: 'var(--bg3)', border: '0.5px solid var(--bd2)', padding: '2px 6px', borderRadius: '3px', textDecoration: 'none' }}>
+            LVL {agent.level} · profile
+          </Link>
+          <span style={{ fontSize: '9px', color: 'var(--t4)', fontFamily: 'var(--mono)' }}>
+            ⚔ {agent.power} · 🧠 {agent.intel} · ★ {agent.reputation}
+          </span>
+          <span style={{ fontSize: '9px', color: 'var(--t4)', fontFamily: 'var(--mono)' }}>
+            {agent.xp} xp
+          </span>
+        </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
           <span style={{ fontSize: '10px', color: 'var(--t4)', fontFamily: 'var(--mono)' }}>
             {new Date(agent.createdAt).toLocaleDateString()}
@@ -403,15 +478,87 @@ function AgentCard({ agent, onUpdate, canDeploy }: { agent: SavedAgent; onUpdate
           {canDeploy && (
             <div style={{ display: 'flex', gap: '6px', paddingTop: '6px', borderTop: '0.5px solid var(--bd)' }}>
               {deploySlug ? (
-                <>
-                  <button onClick={handleCopyLink} disabled={busy} style={{ ...cardGhostBtn, flex: 1, color: 'var(--green)', border: '0.5px solid var(--green2)' }}>
-                    <i className="ti ti-link" style={{ fontSize: '12px' }} aria-hidden />
-                    {copyStatus ?? 'Copy public link'}
-                  </button>
-                  <button onClick={handleUnpublish} disabled={busy} style={cardGhostBtn}>
-                    Unpublish
-                  </button>
-                </>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', width: '100%' }}>
+                  <div style={{ display: 'flex', gap: '6px' }}>
+                    <button onClick={handleCopyLink} disabled={busy} style={{ ...cardGhostBtn, flex: 1, color: 'var(--green)', border: '0.5px solid var(--green2)' }}>
+                      <i className="ti ti-link" style={{ fontSize: '12px' }} aria-hidden />
+                      {copyStatus ?? 'Copy public link'}
+                    </button>
+                    <button onClick={handleUnpublish} disabled={busy} style={cardGhostBtn}>
+                      Unpublish
+                    </button>
+                  </div>
+                  {editingPrice ? (
+                    <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                      <span style={{ fontSize: '10px', color: 'var(--t4)', fontFamily: 'var(--mono)' }}>$</span>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.0001"
+                        value={priceInput}
+                        onChange={e => setPriceInput(e.target.value)}
+                        placeholder="0.00"
+                        autoFocus
+                        onKeyDown={e => e.key === 'Enter' && handleSetPrice()}
+                        style={{
+                          flex: 1,
+                          fontSize: '11px',
+                          padding: '6px 8px',
+                          borderRadius: '5px',
+                          background: 'var(--bg)',
+                          border: '0.5px solid var(--bd2)',
+                          color: 'var(--t1)',
+                          fontFamily: 'var(--mono)',
+                        }}
+                      />
+                      <span style={{ fontSize: '10px', color: 'var(--t4)', fontFamily: 'var(--mono)' }}>USDC</span>
+                      <button
+                        onClick={handleSetPrice}
+                        disabled={busy || parseFloat(priceInput || '0') === deployPrice}
+                        style={cardGhostBtn}
+                      >
+                        Save
+                      </button>
+                      <button
+                        onClick={() => { setPriceInput(String(deployPrice)); setEditingPrice(false); }}
+                        disabled={busy}
+                        style={cardGhostBtn}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                      <span
+                        style={{
+                          flex: 1,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '5px',
+                          fontSize: '11px',
+                          fontFamily: 'var(--mono)',
+                          color: deployPrice > 0 ? 'var(--green)' : 'var(--t3)',
+                          padding: '6px 8px',
+                          borderRadius: '5px',
+                          background: 'var(--bg)',
+                          border: '0.5px solid var(--bd2)',
+                        }}
+                      >
+                        <i className={`ti ${deployPrice > 0 ? 'ti-circle-check' : 'ti-circle-dashed'}`} style={{ fontSize: '12px' }} aria-hidden />
+                        {deployPrice > 0 ? `$${deployPrice} USDC — live` : 'Free — live'}
+                        {priceSaved && <span style={{ color: 'var(--green)' }}>· Saved</span>}
+                      </span>
+                      <button onClick={() => setEditingPrice(true)} disabled={busy} style={cardGhostBtn}>
+                        Edit price
+                      </button>
+                    </div>
+                  )}
+                  <span style={{ fontSize: '10px', color: 'var(--t4)' }}>
+                    {deployPrice > 0
+                      ? `Runners pay $${deployPrice} USDC via x402 (Phantom, Base Sepolia) before each run.`
+                      : 'Free to run. Set a price to gate runs behind x402 USDC payment.'}
+                  </span>
+                </div>
               ) : (
                 <button onClick={handleDeploy} disabled={busy} style={{ ...cardGhostBtn, flex: 1 }}>
                   <i className="ti ti-world" style={{ fontSize: '12px' }} aria-hidden />
@@ -436,6 +583,10 @@ function AgentCard({ agent, onUpdate, canDeploy }: { agent: SavedAgent; onUpdate
             </div>
           )}
           <BattleHistory agentId={agent.id} agentName={agent.name} authHeaders={authHeaders} />
+          <Link href="/missions" style={{ ...cardGhostBtn, width: '100%' }}>
+            <i className="ti ti-briefcase" style={{ fontSize: '12px' }} aria-hidden />
+            Send to mission
+          </Link>
         </div>
       ) : (
         <div style={{ display: 'flex', gap: '6px' }}>
@@ -477,15 +628,38 @@ function AgentCard({ agent, onUpdate, canDeploy }: { agent: SavedAgent; onUpdate
             <h3 style={{ fontSize: '16px', fontWeight: 500, color: 'var(--t1)', marginBottom: '12px' }}>
               List &ldquo;{agent.name}&rdquo; on marketplace
             </h3>
-            <label style={{ fontSize: '11px', color: 'var(--t3)', display: 'block', marginBottom: '4px' }}>Price (SOL, 0 = free)</label>
+            <label style={{ fontSize: '11px', color: 'var(--t3)', display: 'block', marginBottom: '4px' }}>Price (USDC, 0 = free)</label>
             <input
               type="number"
               min="0"
-              step="0.001"
+              step="0.0001"
               value={listPrice}
               onChange={e => setListPrice(e.target.value)}
               style={{ width: '100%', padding: '8px 10px', borderRadius: '4px', border: '0.5px solid var(--bd2)', background: 'var(--bg)', color: 'var(--t1)', fontSize: '13px', marginBottom: '12px', boxSizing: 'border-box' }}
             />
+            {parseFloat(listPrice || '0') > 0 && (
+              <div style={{ marginBottom: '12px' }}>
+                <label style={{ fontSize: '11px', color: 'var(--t3)', display: 'block', marginBottom: '4px' }}>USDC payout wallet (Base)</label>
+                {payoutEvmAddress ? (
+                  <div style={{ fontSize: '11px', color: 'var(--green)', fontFamily: 'var(--mono)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <i className="ti ti-check" style={{ fontSize: '12px' }} aria-hidden />
+                    {payoutEvmAddress.slice(0, 6)}…{payoutEvmAddress.slice(-4)}
+                    <button onClick={handleConnectEvm} disabled={connectingEvm} style={{ fontSize: '10px', color: 'var(--t3)', background: 'transparent', border: 'none', cursor: 'pointer', padding: 0 }}>
+                      change
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={handleConnectEvm}
+                    disabled={connectingEvm}
+                    style={{ ...cardGhostBtn, width: '100%' }}
+                  >
+                    <i className="ti ti-wallet" style={{ fontSize: '12px' }} aria-hidden />
+                    {connectingEvm ? 'Connecting…' : 'Connect Phantom (Base)'}
+                  </button>
+                )}
+              </div>
+            )}
             <label style={{ fontSize: '11px', color: 'var(--t3)', display: 'block', marginBottom: '4px' }}>Description (optional)</label>
             <textarea
               value={listDesc}

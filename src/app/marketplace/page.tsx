@@ -2,41 +2,41 @@
 
 import { useEffect, useState } from 'react';
 import { SiteHeader } from '@/components/shared/SiteHeader';
-import { getLessonByFolder, STAGES } from '@/lib/lessons';
+import { getLessonByFolder, STAGES, LESSONS } from '@/lib/lessons';
 import { useAuth } from '@/hooks/useAuth';
-import { payViaPhantom } from '@/lib/payAndRun';
+import { runWithX402Payment } from '@/lib/payX402';
 import { useToast } from '@/components/shared/Toast';
 
 type Listing = {
   id: string;
   agent_id: string;
   seller_wallet: string;
-  price_lamports: number;
+  price_usd: number;
+  payout_evm_address: string | null;
   description: string | null;
   created_at: string;
-  agent: { id: string; name: string; lesson_id: string; code_preview: string; code_truncated: boolean; wins: number; losses: number } | null;
+  agent: { id: string; name: string; lesson_id: string; code_preview: string; code_truncated: boolean; wins: number; losses: number; level: number; reputation: number; market_value: number; verified: boolean } | null;
   run_count: number;
 };
 
-type SortKey = 'newest' | 'price_asc' | 'price_desc' | 'popular';
+type SortKey = 'newest' | 'price_asc' | 'price_desc' | 'popular' | 'level_desc' | 'verified_first';
 
 function sortListings(listings: Listing[], sort: SortKey): Listing[] {
   const sorted = [...listings];
   switch (sort) {
     case 'price_asc':
-      return sorted.sort((a, b) => a.price_lamports - b.price_lamports);
+      return sorted.sort((a, b) => a.price_usd - b.price_usd);
     case 'price_desc':
-      return sorted.sort((a, b) => b.price_lamports - a.price_lamports);
+      return sorted.sort((a, b) => b.price_usd - a.price_usd);
     case 'popular':
       return sorted.sort((a, b) => b.run_count - a.run_count);
+    case 'level_desc':
+      return sorted.sort((a, b) => (b.agent?.level ?? 0) - (a.agent?.level ?? 0));
+    case 'verified_first':
+      return sorted.sort((a, b) => Number(b.agent?.verified ?? false) - Number(a.agent?.verified ?? false));
     default:
       return sorted.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
   }
-}
-
-function lamportsToSol(lamports: number): string {
-  const sol = (lamports / 1_000_000_000).toFixed(4).replace(/0+$/, '').replace(/\.$/, '');
-  return sol === '' ? '0' : sol;
 }
 
 function ListingSkeleton() {
@@ -76,6 +76,7 @@ export default function MarketplacePage() {
   const [loading, setLoading] = useState(true);
   const [sort, setSort] = useState<SortKey>('newest');
   const [stageFilter, setStageFilter] = useState<string>('all');
+  const [patternFilter, setPatternFilter] = useState<string>('all');
 
   useEffect(() => {
     fetch('/api/marketplace')
@@ -98,7 +99,7 @@ export default function MarketplacePage() {
             Marketplace
           </h1>
           <p style={{ fontSize: '13px', color: 'var(--t2)', marginTop: '8px', lineHeight: 1.65, maxWidth: '480px' }}>
-            Browse agents listed by other builders. Paid agents charge SOL on Solana devnet — connect a wallet to run them.
+            Browse agents listed by other builders. Paid agents charge USDC via x402 (Base Sepolia) — connect Phantom to run them.
           </p>
         </div>
 
@@ -115,12 +116,24 @@ export default function MarketplacePage() {
               ))}
             </select>
             <select
+              value={patternFilter}
+              onChange={e => setPatternFilter(e.target.value)}
+              style={selectStyle}
+            >
+              <option value="all">All patterns mastered</option>
+              {LESSONS.map(l => (
+                <option key={l.folder} value={l.folder}>{l.title}</option>
+              ))}
+            </select>
+            <select
               value={sort}
               onChange={e => setSort(e.target.value as SortKey)}
               style={selectStyle}
             >
               <option value="newest">Newest</option>
               <option value="popular">Most run</option>
+              <option value="level_desc">Highest level</option>
+              <option value="verified_first">Verified first</option>
               <option value="price_asc">Price: low to high</option>
               <option value="price_desc">Price: high to low</option>
             </select>
@@ -128,9 +141,9 @@ export default function MarketplacePage() {
         )}
 
         {(() => {
-          const filtered = stageFilter === 'all'
-            ? listings
-            : listings.filter(l => l.agent && getLessonByFolder(l.agent.lesson_id)?.stage === stageFilter);
+          const filtered = listings
+            .filter(l => stageFilter === 'all' || (l.agent && getLessonByFolder(l.agent.lesson_id)?.stage === stageFilter))
+            .filter(l => patternFilter === 'all' || l.agent?.lesson_id === patternFilter);
           const visible = sortListings(filtered, sort);
 
           if (loading) {
@@ -186,6 +199,7 @@ function ListingCard({ listing }: { listing: Listing }) {
   const [showPreview, setShowPreview] = useState(false);
   const [forked, setForked] = useState(false);
   const [previewCopied, setPreviewCopied] = useState(false);
+  const [outputCopied, setOutputCopied] = useState(false);
   const [proofTx, setProofTx] = useState<string | null>(null);
 
   const handleCopyPreview = () => {
@@ -193,6 +207,13 @@ function ListingCard({ listing }: { listing: Listing }) {
     navigator.clipboard.writeText(listing.agent.code_preview);
     setPreviewCopied(true);
     setTimeout(() => setPreviewCopied(false), 1500);
+  };
+
+  const handleCopyOutput = () => {
+    if (!output) return;
+    navigator.clipboard.writeText(output);
+    setOutputCopied(true);
+    setTimeout(() => setOutputCopied(false), 1500);
   };
 
   const authHeaders = (): HeadersInit => ({
@@ -206,38 +227,30 @@ function ListingCard({ listing }: { listing: Listing }) {
     setError(null);
     setOutput(null);
     try {
-      let txSignature: string | undefined;
-
-      if (listing.price_lamports > 0) {
+      if (listing.price_usd > 0) {
         if (!user) throw new Error('Connect your wallet to run a paid agent.');
         if (user.wallet === listing.seller_wallet) throw new Error("You can't buy your own listing.");
-        setStage('Waiting for Phantom approval…');
-        txSignature = await payViaPhantom(listing.seller_wallet, listing.price_lamports);
-        setStage('Verifying payment…');
+        setStage('Waiting for Phantom approval (USDC, Base Sepolia)…');
       } else {
         setStage('Running agent…');
       }
 
-      const res = await fetch(`/api/marketplace/${listing.id}/run`, {
-        method: 'POST',
-        headers: authHeaders(),
-        body: JSON.stringify({ txSignature, prompt: 'Run the agent.' }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || 'Run failed');
+      const data = await runWithX402Payment(`/api/marketplace/${listing.id}/run`, { prompt: 'Run the agent.' }, authHeaders());
       setOutput(data.output);
       if (data.forked) setForked(true);
       if (data.proofTx) setProofTx(data.proofTx);
       const name = listing.agent?.name ?? 'agent';
-      if (listing.price_lamports > 0) {
-        const cost = lamportsToSol(listing.price_lamports);
+      if (listing.price_usd > 0) {
         showToast(
           data.forked
-            ? `Purchased "${name}" for ${cost} SOL — added to My Agents`
-            : `Purchased "${name}" for ${cost} SOL — you already have a copy in My Agents`
+            ? `Purchased "${name}" for $${listing.price_usd} USDC — added to My Agents`
+            : `Purchased "${name}" for $${listing.price_usd} USDC — you already have a copy in My Agents`
         );
       } else if (data.forked) {
         showToast(`Added "${name}" to My Agents`);
+      }
+      if (data.levelUp) {
+        showToast(`⚡ "${data.levelUp.agentName}" leveled up to LVL ${data.levelUp.newLevel}!`);
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Run failed');
@@ -266,9 +279,22 @@ function ListingCard({ listing }: { listing: Listing }) {
         </span>
       </div>
 
-      <h3 style={{ fontSize: '14px', fontWeight: 500, color: 'var(--t1)' }}>
-        {listing.agent?.name ?? 'Untitled agent'}
-      </h3>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+        <h3 style={{ fontSize: '14px', fontWeight: 500, color: 'var(--t1)' }}>
+          {listing.agent?.name ?? 'Untitled agent'}
+        </h3>
+        {listing.agent && (
+          <span style={{ fontSize: '9px', color: 'var(--t1)', fontFamily: 'var(--mono)', background: 'var(--bg3)', border: '0.5px solid var(--bd2)', padding: '1px 5px', borderRadius: '3px' }}>
+            LVL {listing.agent.level}
+          </span>
+        )}
+        {listing.agent?.verified && (
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', fontSize: '9px', color: 'var(--green)', fontFamily: 'var(--mono)', background: 'rgba(74,222,128,0.08)', border: '0.5px solid rgba(74,222,128,0.25)', padding: '1px 5px', borderRadius: '3px' }}>
+            <i className="ti ti-shield-check" style={{ fontSize: '10px' }} aria-hidden />
+            Verified
+          </span>
+        )}
+      </div>
 
       {listing.description && (
         <p style={{ fontSize: '12px', color: 'var(--t2)', lineHeight: 1.5 }}>{listing.description}</p>
@@ -291,6 +317,11 @@ function ListingCard({ listing }: { listing: Listing }) {
           )}
         </span>
       </div>
+      {listing.agent && listing.agent.market_value > 0 && (
+        <div style={{ fontSize: '10px', color: 'var(--t4)', fontFamily: 'var(--mono)' }}>
+          est. value ${listing.agent.market_value} USDC
+        </div>
+      )}
 
       <button
         onClick={() => setShowPreview(v => !v)}
@@ -373,8 +404,8 @@ function ListingCard({ listing }: { listing: Listing }) {
           borderTop: '0.5px solid var(--bd)',
         }}
       >
-        <span style={{ fontSize: '13px', fontWeight: 500, color: listing.price_lamports > 0 ? 'var(--acc)' : 'var(--green)' }}>
-          {listing.price_lamports > 0 ? `${lamportsToSol(listing.price_lamports)} SOL` : 'Free'}
+        <span style={{ fontSize: '13px', fontWeight: 500, color: listing.price_usd > 0 ? 'var(--acc)' : 'var(--green)' }}>
+          {listing.price_usd > 0 ? `$${listing.price_usd} USDC` : 'Free'}
         </span>
         {isOwnListing ? (
           <span style={{ fontSize: '11px', color: 'var(--t4)', fontFamily: 'var(--mono)' }}>your listing</span>
@@ -396,8 +427,8 @@ function ListingCard({ listing }: { listing: Listing }) {
               cursor: running ? 'not-allowed' : 'pointer',
             }}
           >
-            <i className={`ti ${listing.price_lamports > 0 ? 'ti-shopping-cart' : 'ti-player-play'}`} style={{ fontSize: '12px' }} aria-hidden />
-            {running ? (stage || 'Running…') : listing.price_lamports > 0 ? 'Buy' : 'Run'}
+            <i className={`ti ${listing.price_usd > 0 ? 'ti-shopping-cart' : 'ti-player-play'}`} style={{ fontSize: '12px' }} aria-hidden />
+            {running ? (stage || 'Running…') : listing.price_usd > 0 ? 'Buy' : 'Run'}
           </button>
         )}
       </div>
@@ -417,24 +448,53 @@ function ListingCard({ listing }: { listing: Listing }) {
       )}
 
       {output && (
-        <pre
-          style={{
-            fontSize: '11px',
-            color: 'var(--t2)',
-            background: 'var(--bg)',
-            border: '0.5px solid var(--bd)',
-            borderRadius: '6px',
-            padding: '10px',
-            margin: 0,
-            whiteSpace: 'pre-wrap',
-            wordBreak: 'break-word',
-            maxHeight: '200px',
-            overflow: 'auto',
-            fontFamily: 'var(--mono)',
-          }}
-        >
-          {output}
-        </pre>
+        <div style={{ border: '0.5px solid var(--bd)', borderRadius: '6px', overflow: 'hidden' }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '5px 8px',
+              background: 'var(--bg2)',
+              borderBottom: '0.5px solid var(--bd)',
+            }}
+          >
+            <span style={{ fontSize: '9px', color: 'var(--t4)', fontFamily: 'var(--mono)' }}>output</span>
+            <button
+              onClick={handleCopyOutput}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px',
+                fontSize: '10px',
+                color: outputCopied ? 'var(--green)' : 'var(--t3)',
+                background: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                padding: '2px 4px',
+              }}
+            >
+              <i className={`ti ${outputCopied ? 'ti-check' : 'ti-copy'}`} style={{ fontSize: '11px' }} aria-hidden />
+              {outputCopied ? 'Copied' : 'Copy'}
+            </button>
+          </div>
+          <pre
+            style={{
+              fontSize: '11px',
+              color: 'var(--t2)',
+              background: 'var(--bg)',
+              padding: '10px',
+              margin: 0,
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-word',
+              maxHeight: '200px',
+              overflow: 'auto',
+              fontFamily: 'var(--mono)',
+            }}
+          >
+            {output}
+          </pre>
+        </div>
       )}
 
       {proofTx && (
@@ -459,13 +519,13 @@ function ListingCard({ listing }: { listing: Listing }) {
             style={{ background: 'var(--bg2)', border: '0.5px solid var(--bd2)', borderRadius: '8px', padding: '24px', maxWidth: '380px', width: '90%' }}
           >
             <h3 style={{ fontSize: '16px', fontWeight: 500, color: 'var(--t1)', marginBottom: '8px' }}>
-              {listing.price_lamports > 0 ? 'Confirm purchase' : 'Run this agent?'}
+              {listing.price_usd > 0 ? 'Confirm purchase' : 'Run this agent?'}
             </h3>
             <p style={{ fontSize: '12px', color: 'var(--t2)', lineHeight: 1.6, marginBottom: '16px' }}>
               You're about to run <strong style={{ color: 'var(--t1)' }}>{listing.agent?.name ?? 'this agent'}</strong>
               {listing.description ? ` — ${listing.description}` : ''}.
-              {listing.price_lamports > 0 ? (
-                <> This costs <strong style={{ color: 'var(--acc)' }}>{lamportsToSol(listing.price_lamports)} SOL</strong>, paid to the creator's wallet ({listing.seller_wallet.slice(0, 8)}…{listing.seller_wallet.slice(-8)}). You'll confirm the transfer in Phantom next.</>
+              {listing.price_usd > 0 ? (
+                <> This costs <strong style={{ color: 'var(--acc)' }}>${listing.price_usd} USDC</strong> (x402, Base Sepolia), paid to the creator's EVM wallet. You'll sign with Phantom next.</>
               ) : (
                 <> This is free to run.</>
               )}
@@ -475,7 +535,7 @@ function ListingCard({ listing }: { listing: Listing }) {
                 onClick={handleConfirm}
                 style={{ flex: 1, padding: '8px', borderRadius: '4px', background: 'var(--acc)', color: '#000', border: 'none', fontWeight: 500, cursor: 'pointer' }}
               >
-                {listing.price_lamports > 0 ? 'Confirm & pay' : 'Run it'}
+                {listing.price_usd > 0 ? 'Confirm & pay' : 'Run it'}
               </button>
               <button
                 onClick={() => setShowConfirm(false)}
