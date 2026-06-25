@@ -61,6 +61,41 @@ export async function recordExecutionProof(params: {
 }
 
 /**
+ * Writes a memo on-chain recording that a user earned a skill badge for completing
+ * a lesson, signed by our own server wallet. A verifiable receipt that this user
+ * mastered this pattern at this time.
+ */
+export async function recordBadgeProof(params: {
+  userWallet: string;
+  lessonId: string;
+}): Promise<{ proofTx: string }> {
+  const memo = JSON.stringify({
+    type: 'skill_badge',
+    user: params.userWallet,
+    lessonId: params.lessonId,
+    t: Date.now(),
+  });
+
+  const signer = getServerKeypair();
+  const connection = getConnection();
+  const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
+
+  const tx = new Transaction({ feePayer: signer.publicKey, blockhash, lastValidBlockHeight }).add(
+    new TransactionInstruction({
+      keys: [],
+      programId: MEMO_PROGRAM_ID,
+      data: Buffer.from(memo, 'utf-8'),
+    })
+  );
+  tx.sign(signer);
+
+  const proofTx = await connection.sendRawTransaction(tx.serialize());
+  await connection.confirmTransaction({ signature: proofTx, blockhash, lastValidBlockHeight }, 'confirmed');
+
+  return { proofTx };
+}
+
+/**
  * Writes a memo on-chain recording the outcome of a battle (hashes of both
  * outputs + winner), signed by our own server wallet. Same trust model as
  * recordExecutionProof: a receipt anyone can verify, not a correctness proof.

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { MarkdownRenderer } from "./MarkdownRenderer";
 import { PlaygroundShell } from "@/components/agent/PlaygroundShell";
 import { markComplete, getCompleted } from "@/lib/progress";
+import { BadgeUnlockModal } from "@/components/shared/BadgeUnlockModal";
 import type { Lesson } from "@/lib/lessons";
 
 interface Props {
@@ -25,6 +26,7 @@ type Tab = "concept" | "code";
 export function LessonContent({ lesson, concept, code, prev, next }: Props) {
   const [tab, setTab] = useState<Tab>("concept");
   const [completed, setCompleted] = useState<Set<string>>(new Set());
+  const [showBadge, setShowBadge] = useState(false);
   const isDone = completed.has(lesson.folder);
 
   useEffect(() => {
@@ -43,11 +45,18 @@ export function LessonContent({ lesson, concept, code, prev, next }: Props) {
   }, [prev, next]);
 
   const handleComplete = useCallback(() => {
-    markComplete(lesson.folder).then(updated => setCompleted(new Set(updated)));
+    markComplete(lesson.folder).then(({ completed, badgeAwarded }) => {
+      setCompleted(new Set(completed));
+      if (badgeAwarded) setShowBadge(true);
+    });
   }, [lesson.folder]);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>
+
+      {showBadge && (
+        <BadgeUnlockModal lessonNum={lesson.num} lessonTitle={lesson.title} lessonTag={lesson.tag} onClose={() => setShowBadge(false)} />
+      )}
 
       {/* Tab bar — only longhand border props to avoid React style conflict */}
       <div style={{ display: "flex", padding: "0 26px", borderBottom: "0.5px solid var(--bd)", flexShrink: 0 }}>

@@ -3,8 +3,10 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 import { SiteHeader } from '@/components/shared/SiteHeader';
 import { getLessonByFolder } from '@/lib/lessons';
+import { badgeImageForLesson } from '@/lib/badgeAssets';
 
 type AgentProfile = {
   id: string;
@@ -22,6 +24,7 @@ type AgentProfile = {
 };
 
 type JobLog = { id: string; role: string; output: string; created_at: string };
+type Badge = { lesson_id: string; badge_tx: string | null; created_at: string };
 
 const authHeaders = (): HeadersInit => ({
   Authorization: `Bearer ${typeof window !== 'undefined' ? localStorage.getItem('authToken') : ''}`,
@@ -47,6 +50,7 @@ export default function AgentProfilePage() {
   const id = params?.id as string;
   const [agent, setAgent] = useState<AgentProfile | null>(null);
   const [logs, setLogs] = useState<JobLog[]>([]);
+  const [badges, setBadges] = useState<Badge[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -60,6 +64,10 @@ export default function AgentProfilePage() {
       .then(res => (res.ok ? res.json() : []))
       .then(d => setLogs(Array.isArray(d) ? d : []))
       .catch(() => {});
+    fetch('/api/badges', { headers: authHeaders() })
+      .then(res => (res.ok ? res.json() : []))
+      .then(d => setBadges(Array.isArray(d) ? d : []))
+      .catch(() => {});
   }, [id]);
 
   const lesson = agent ? getLessonByFolder(agent.lesson_id) : undefined;
@@ -68,6 +76,7 @@ export default function AgentProfilePage() {
   const winRate = agent && agent.wins + agent.losses > 0 ? Math.round((agent.wins / (agent.wins + agent.losses)) * 100) : null;
   const marketValue = agent ? Math.round((agent.level * 0.01 + agent.wins * 0.005 + agent.reputation * 0.002 + (agent.lineage_tx ? 0.01 : 0)) * 10000) / 10000 : 0;
   const verified = agent ? !!agent.lineage_tx && agent.wins + agent.losses >= 3 : false;
+  const hasMatchingBadge = agent ? badges.some(b => b.lesson_id === agent.lesson_id) : false;
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
@@ -135,6 +144,35 @@ export default function AgentProfilePage() {
                   <span style={{ fontSize: '10px', color: 'var(--t4)', fontFamily: 'var(--mono)', marginLeft: 'auto' }}>{lesson.tag}</span>
                 </div>
                 <p style={{ fontSize: '11px', color: 'var(--t3)', lineHeight: 1.6, marginTop: '8px' }}>{lesson.desc}</p>
+                {hasMatchingBadge && (
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', marginTop: '10px', fontSize: '10px', color: 'var(--green)', fontFamily: 'var(--mono)', background: 'rgba(74,222,128,0.08)', border: '0.5px solid rgba(74,222,128,0.25)', padding: '3px 8px', borderRadius: '4px' }}>
+                    <Image src={badgeImageForLesson(lesson.num)} alt="" width={14} height={14} />
+                    Skill badge earned — +15 power / +15 intel applied
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Skill badges earned */}
+            {badges.length > 0 && (
+              <div style={{ background: 'var(--bg2)', border: '0.5px solid var(--bd2)', borderRadius: '8px', padding: '16px', marginBottom: '16px' }}>
+                <div style={{ fontSize: '10px', color: 'var(--t3)', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: 'var(--mono)', marginBottom: '10px' }}>owner skill badges</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                  {badges.map(b => {
+                    const bl = getLessonByFolder(b.lesson_id);
+                    const badge = (
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '10px', color: 'var(--t2)', fontFamily: 'var(--mono)', background: 'var(--bg)', border: '0.5px solid var(--bd2)', padding: '4px 8px', borderRadius: '4px' }}>
+                        <Image src={badgeImageForLesson(bl?.num ?? 1)} alt="" width={14} height={14} />
+                        {bl?.title ?? b.lesson_id}
+                      </span>
+                    );
+                    return b.badge_tx ? (
+                      <a key={b.lesson_id} href={`https://explorer.solana.com/tx/${b.badge_tx}?cluster=devnet`} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none' }}>{badge}</a>
+                    ) : (
+                      <span key={b.lesson_id}>{badge}</span>
+                    );
+                  })}
+                </div>
               </div>
             )}
 

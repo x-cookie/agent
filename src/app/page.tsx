@@ -812,6 +812,7 @@ export default function LandingPage() {
           {[
             { href: "/learn", label: "Learn" },
             { href: "/marketplace", label: "Marketplace" },
+            { href: "/missions", label: "Missions" },
             { href: "/battle", label: "Battle" },
             { href: "/docs", label: "Docs" },
           ].map(l => (

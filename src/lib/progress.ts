@@ -38,13 +38,17 @@ async function getCompletedApi(): Promise<Set<string>> {
   return new Set(rows.map((r: { lesson_id: string }) => r.lesson_id));
 }
 
-async function markCompleteApi(folder: string): Promise<Set<string>> {
+export type MarkCompleteResult = { completed: Set<string>; badgeAwarded: boolean };
+
+async function markCompleteApi(folder: string): Promise<MarkCompleteResult> {
   const res = await fetch(`/api/progress/${folder}`, {
     method: "POST",
     headers: authHeaders(),
   });
   if (!res.ok) throw new Error("Failed to mark progress");
-  return getCompletedApi();
+  const body = await res.json().catch(() => ({}));
+  const completed = await getCompletedApi();
+  return { completed, badgeAwarded: !!body?.badgeAwarded };
 }
 
 /** Logged in (API) when an auth token exists, else localStorage. */
@@ -53,9 +57,10 @@ export async function getCompleted(): Promise<Set<string>> {
   return getToken() ? getCompletedApi() : getCompletedLocalStorage();
 }
 
-export async function markComplete(folder: string): Promise<Set<string>> {
-  if (typeof window === "undefined") return new Set();
-  return getToken() ? markCompleteApi(folder) : markCompleteLocalStorage(folder);
+export async function markComplete(folder: string): Promise<MarkCompleteResult> {
+  if (typeof window === "undefined") return { completed: new Set(), badgeAwarded: false };
+  if (getToken()) return markCompleteApi(folder);
+  return { completed: markCompleteLocalStorage(folder), badgeAwarded: false };
 }
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars

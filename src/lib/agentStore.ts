@@ -13,6 +13,8 @@ export type SavedAgent = {
   reputation: number;
   xp: number;
   level: number;
+  /** True when a skill-badge bonus was applied at creation (only present on create response). */
+  badgeBonusApplied?: boolean;
 };
 
 export type AgentStoreBackend = 'localStorage' | 'api';
@@ -34,6 +36,7 @@ function fromApiRow(row: {
   reputation?: number;
   xp?: number;
   level?: number;
+  badgeBonusApplied?: boolean;
 }): SavedAgent {
   return {
     id: row.id,
@@ -43,6 +46,7 @@ function fromApiRow(row: {
     createdAt: new Date(row.created_at).getTime(),
     updatedAt: new Date(row.updated_at).getTime(),
     source: row.source ?? 'created',
+    badgeBonusApplied: row.badgeBonusApplied,
     power: row.power ?? 10,
     intel: row.intel ?? 10,
     reputation: row.reputation ?? 0,

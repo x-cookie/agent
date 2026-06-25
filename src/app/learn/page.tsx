@@ -7,8 +7,9 @@ import { LESSONS, STAGES, STAGE_GROUPS } from "@/lib/lessons";
 import { getCompleted } from "@/lib/progress";
 import { CircuitBackground } from "@/components/roadmap/CircuitBackground";
 import { SocialIcons } from "@/components/shared/SocialIcons";
+import { badgeImageForLesson } from "@/lib/badgeAssets";
 
-function NodeCard({ lesson, completed, unlocked }: { lesson: (typeof LESSONS)[0]; completed: boolean; unlocked: boolean }) {
+function NodeCard({ lesson, completed, unlocked, hasBadge }: { lesson: (typeof LESSONS)[0]; completed: boolean; unlocked: boolean; hasBadge: boolean }) {
   const base: React.CSSProperties = {
     width: "88px", flexShrink: 0, border: "0.5px solid var(--bd2)", borderRadius: "6px",
     background: "var(--bg2)", padding: "12px 10px 10px", display: "flex", flexDirection: "column",
@@ -20,6 +21,13 @@ function NodeCard({ lesson, completed, unlocked }: { lesson: (typeof LESSONS)[0]
 
   const inner = (
     <div style={base}>
+      {/* Skill badge marker — mastery earned + anchored on-chain (distinct from the plain "done" check) */}
+      {hasBadge && (
+        <div title="Skill badge earned" style={{ position: "absolute", top: 2, left: 2, width: "18px", height: "18px" }}>
+          <Image src={badgeImageForLesson(lesson.num)} alt="" width={18} height={18} />
+        </div>
+      )}
+
       {/* State badge */}
       {completed && (
         <div style={{ position: "absolute", top: 5, right: 5, width: "14px", height: "14px", borderRadius: "50%", background: "var(--green)", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -73,9 +81,17 @@ function NodeConnector({ done }: { done: boolean }) {
 
 export default function BranchPage() {
   const [completed, setCompleted] = useState<Set<string>>(new Set());
+  const [badges, setBadges] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     getCompleted().then(setCompleted);
+    const token = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
+    if (token) {
+      fetch("/api/badges", { headers: { Authorization: `Bearer ${token}` } })
+        .then(res => (res.ok ? res.json() : []))
+        .then(rows => Array.isArray(rows) && setBadges(new Set(rows.map((r: { lesson_id: string }) => r.lesson_id))))
+        .catch(() => {});
+    }
   }, []);
 
   return (
@@ -89,7 +105,7 @@ export default function BranchPage() {
           <span style={{ fontSize: "14px", fontWeight: 500, color: "var(--t1)", letterSpacing: "-0.01em" }}>agent</span>
         </Link>
         <div style={{ display: "flex", gap: "28px" }}>
-          {[{ href: "/learn", label: "Learn" }, { href: "/agents", label: "My Agents" }, { href: "/marketplace", label: "Marketplace" }, { href: "/battle", label: "Battle" }, { href: "/docs", label: "Docs" }].map(l => (
+          {[{ href: "/learn", label: "Learn" }, { href: "/agents", label: "My Agents" }, { href: "/marketplace", label: "Marketplace" }, { href: "/missions", label: "Missions" }, { href: "/battle", label: "Battle" }, { href: "/docs", label: "Docs" }].map(l => (
             <Link key={l.href} href={l.href} style={{ fontSize: "13px", fontWeight: 500, color: "var(--t1)", textDecoration: "none" }}>{l.label}</Link>
           ))}
         </div>
@@ -142,7 +158,7 @@ export default function BranchPage() {
 
                   return (
                     <div key={lesson.id} style={{ display: "flex", alignItems: "center" }}>
-                      <NodeCard lesson={lesson} completed={done} unlocked={unlockedFinal} />
+                      <NodeCard lesson={lesson} completed={done} unlocked={unlockedFinal} hasBadge={badges.has(lesson.folder)} />
                       {i < lessons.length - 1 && <NodeConnector done={done && completed.has(lessons[i + 1]?.folder ?? "")} />}
                     </div>
                   );

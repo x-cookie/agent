@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { agentStore } from '@/lib/agentStore';
+import { motion } from 'framer-motion';
+import { agentStore, SavedAgent } from '@/lib/agentStore';
 import { runAgent } from '@/lib/runAgent';
 import type { Lesson } from '@/lib/lessons';
 
@@ -22,6 +23,7 @@ export function PlaygroundShell({ lesson, baseCode, onSave }: PlaygroundShellPro
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [agentName, setAgentName] = useState(`${lesson.title} v1`);
   const [saveStatus, setSaveStatus] = useState<string>('');
+  const [savedResult, setSavedResult] = useState<{ agent: SavedAgent; isNew: boolean } | null>(null);
   const [loadingAgent, setLoadingAgent] = useState(!!loadAgentId);
   const [loadedAgentName, setLoadedAgentName] = useState<string | null>(null);
 
@@ -70,12 +72,13 @@ export function PlaygroundShell({ lesson, baseCode, onSave }: PlaygroundShellPro
       const saved = !asNew && loadAgentId
         ? await agentStore.update(loadAgentId, { name: agentName.trim(), code })
         : await agentStore.save({ name: agentName.trim(), lessonId: lesson.id, code });
-      setSaveStatus(asNew || !loadAgentId ? `✓ Agent saved: ${saved.name}` : `✓ Updated: ${saved.name}`);
+      setSaveStatus('');
+      setSavedResult({ agent: saved, isNew: asNew || !loadAgentId });
       setTimeout(() => {
         setShowSaveModal(false);
-        setSaveStatus('');
+        setSavedResult(null);
         if (asNew) setAgentName(`${lesson.title} v1`);
-      }, 1500);
+      }, saved.badgeBonusApplied ? 3400 : 2200);
     } catch (e) {
       setSaveStatus(`Error: ${e instanceof Error ? e.message : String(e)}`);
     }
@@ -225,6 +228,10 @@ export function PlaygroundShell({ lesson, baseCode, onSave }: PlaygroundShellPro
               width: '90%',
             }}
           >
+            {savedResult ? (
+              <SaveSuccessPanel agent={savedResult.agent} isNew={savedResult.isNew} />
+            ) : (
+            <>
             <h3 style={{ fontSize: '16px', fontWeight: 500, color: 'var(--t1)', marginBottom: '12px' }}>
               Save Agent
             </h3>
@@ -305,8 +312,63 @@ export function PlaygroundShell({ lesson, baseCode, onSave }: PlaygroundShellPro
                 Cancel
               </button>
             </div>
+            </>
+            )}
           </div>
         </div>
+      )}
+    </div>
+  );
+}
+
+/** Animated post-save panel: drawn checkmark + stats revealing in, replaces the flat green text. */
+function SaveSuccessPanel({ agent, isNew }: { agent: SavedAgent; isNew: boolean }) {
+  const stats = [
+    { label: 'LVL', value: agent.level, color: 'var(--t1)' },
+    { label: 'PWR', value: agent.power, color: 'var(--purple)' },
+    { label: 'INT', value: agent.intel, color: 'var(--green)' },
+  ];
+  return (
+    <div style={{ textAlign: 'center', padding: '4px 0' }}>
+      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '14px' }}>
+        <svg width="52" height="52" viewBox="0 0 52 52" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+          <motion.circle cx="26" cy="26" r="23" stroke="var(--green)" strokeWidth="2"
+            initial={{ pathLength: 0, opacity: 0 }} animate={{ pathLength: 1, opacity: 1 }} transition={{ duration: 0.5, ease: 'easeInOut' }} />
+          <motion.path d="M17 27 L23 33 L36 19" stroke="var(--green)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"
+            initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ delay: 0.4, duration: 0.3, ease: 'easeOut' }} />
+        </svg>
+      </div>
+
+      <motion.h3
+        initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2, duration: 0.3 }}
+        style={{ fontSize: '15px', fontWeight: 600, color: 'var(--t1)', margin: '0 0 4px' }}>
+        {isNew ? 'Agent saved' : 'Agent updated'}
+      </motion.h3>
+      <motion.div
+        initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.28, duration: 0.3 }}
+        style={{ fontSize: '11px', color: 'var(--t3)', fontFamily: 'var(--mono)', marginBottom: '16px' }}>
+        {agent.name}
+      </motion.div>
+
+      <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', marginBottom: agent.badgeBonusApplied ? '14px' : '4px' }}>
+        {stats.map((s, i) => (
+          <motion.div key={s.label}
+            initial={{ opacity: 0, y: 10, scale: 0.9 }} animate={{ opacity: 1, y: 0, scale: 1 }}
+            transition={{ delay: 0.4 + i * 0.1, duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+            style={{ flex: 1, maxWidth: '92px', background: 'var(--bg)', border: '0.5px solid var(--bd2)', borderRadius: '8px', padding: '10px 6px' }}>
+            <div style={{ fontSize: '20px', fontWeight: 600, color: s.color, letterSpacing: '-0.02em', lineHeight: 1 }}>{s.value}</div>
+            <div style={{ fontSize: '8.5px', color: 'var(--t4)', fontFamily: 'var(--mono)', letterSpacing: '0.08em', marginTop: '4px' }}>{s.label}</div>
+          </motion.div>
+        ))}
+      </div>
+
+      {agent.badgeBonusApplied && (
+        <motion.div
+          initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.8, duration: 0.3 }}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: 'var(--green)', fontFamily: 'var(--mono)', background: 'rgba(74,222,128,0.08)', border: '0.5px solid rgba(74,222,128,0.25)', padding: '5px 12px', borderRadius: '6px' }}>
+          <i className="ti ti-bolt" style={{ fontSize: '13px' }} aria-hidden />
+          +15 PWR / +15 INT from your skill badge
+        </motion.div>
       )}
     </div>
   );

@@ -37,9 +37,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
+    // Education-linked bonus: if the owner already earned the skill badge for this
+    // lesson, agents built from that pattern start stronger (learning = power).
+    const { data: badge } = await supabaseAdmin
+      .from('skill_badges')
+      .select('id')
+      .eq('user_id', auth.userId)
+      .eq('lesson_id', lessonId)
+      .maybeSingle();
+    const badgeBonus = badge ? { power: 15, intel: 15 } : {};
+
     const { data, error } = await supabaseAdmin
       .from('agents')
-      .insert([{ user_id: auth.userId, name, lesson_id: lessonId, code }])
+      .insert([{ user_id: auth.userId, name, lesson_id: lessonId, code, ...badgeBonus }])
       .select()
       .single();
 
@@ -54,7 +64,7 @@ export async function POST(req: NextRequest) {
       throw error;
     }
 
-    return NextResponse.json(data, { status: 201 });
+    return NextResponse.json({ ...data, badgeBonusApplied: !!badge }, { status: 201 });
   } catch (error) {
     console.error('POST /api/agents error:', error);
     return NextResponse.json(

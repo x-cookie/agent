@@ -2,18 +2,21 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { agentStore, SavedAgent, AgentSource } from '@/lib/agentStore';
 import { useAuth } from '@/hooks/useAuth';
-import { getLessonByFolder } from '@/lib/lessons';
+import { getLessonByFolder, LESSONS } from '@/lib/lessons';
 import { registerLineageOnChain } from '@/lib/lineage';
 import { useToast } from '@/components/shared/Toast';
 import { AgentBattleHistoryModal } from '@/components/battle/AgentBattleHistoryModal';
+import { badgeImageForLesson } from '@/lib/badgeAssets';
 
 export function MyAgentsPage() {
   const { user, loading: authLoading } = useAuth();
   const [agents, setAgents] = useState<SavedAgent[]>([]);
   const [loading, setLoading] = useState(true);
   const [sourceFilter, setSourceFilter] = useState<'all' | AgentSource>('all');
+  const [badges, setBadges] = useState<{ lesson_id: string; badge_tx: string | null }[]>([]);
 
   const refresh = async () => {
     try {
@@ -29,6 +32,15 @@ export function MyAgentsPage() {
   useEffect(() => {
     if (!authLoading) refresh();
   }, [authLoading, user]); // reload when auth state settles/changes
+
+  useEffect(() => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('authToken') : null;
+    if (!token) return;
+    fetch('/api/badges', { headers: { Authorization: `Bearer ${token}` } })
+      .then(res => (res.ok ? res.json() : []))
+      .then(d => Array.isArray(d) && setBadges(d))
+      .catch(() => {});
+  }, [user]);
 
   return (
     <div style={{ maxWidth: '1100px', margin: '0 auto', padding: '40px 32px' }}>
@@ -46,6 +58,54 @@ export function MyAgentsPage() {
             : 'Saved locally in this browser. Connect a wallet to sync across devices.'}
         </p>
       </div>
+
+      {/* Skill badge collection — mastery earned across lessons */}
+      {user && (
+        <div style={{ marginBottom: '28px', background: 'var(--bg2)', border: '0.5px solid var(--bd2)', borderRadius: '10px', padding: '16px 18px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Image src={badgeImageForLesson(1)} alt="" width={16} height={16} />
+              <span style={{ fontSize: '12px', fontWeight: 500, color: 'var(--t1)' }}>Skill Badges</span>
+            </div>
+            <span style={{ fontSize: '11px', color: 'var(--t3)', fontFamily: 'var(--mono)' }}>
+              {badges.length}/{LESSONS.length} earned
+            </span>
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+            {LESSONS.map(l => {
+              const earned = badges.find(b => b.lesson_id === l.folder);
+              const chip = (
+                <span style={{
+                  display: 'inline-flex', alignItems: 'center', gap: '5px',
+                  fontSize: '10px', fontFamily: 'var(--mono)',
+                  color: earned ? 'var(--t2)' : 'var(--t4)',
+                  background: earned ? 'var(--bg)' : 'transparent',
+                  border: `0.5px solid ${earned ? 'var(--bd2)' : 'var(--bd)'}`,
+                  padding: '4px 8px', borderRadius: '4px',
+                  opacity: earned ? 1 : 0.5,
+                }}>
+                  {earned ? (
+                    <Image src={badgeImageForLesson(l.num)} alt="" width={14} height={14} />
+                  ) : (
+                    <i className={`ti ${l.icon}`} style={{ fontSize: '11px', color: 'var(--t4)' }} aria-hidden />
+                  )}
+                  {l.title}
+                </span>
+              );
+              return earned?.badge_tx ? (
+                <a key={l.folder} href={`https://explorer.solana.com/tx/${earned.badge_tx}?cluster=devnet`} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none' }}>{chip}</a>
+              ) : (
+                <span key={l.folder}>{chip}</span>
+              );
+            })}
+          </div>
+          {badges.length === 0 && (
+            <p style={{ fontSize: '11px', color: 'var(--t4)', marginTop: '10px', marginBottom: 0 }}>
+              Complete a lesson to earn your first badge — agents you build from it start stronger.
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Filter tabs */}
       {!loading && agents.length > 0 && (
