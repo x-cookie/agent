@@ -106,7 +106,7 @@ export function ChatSidebar() {
     }
   };
 
-  if (!context) return null;
+  if (!context || feature === 'learn') return null;
 
   return (
     <>
