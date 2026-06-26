@@ -5,6 +5,7 @@ import "./globals.css";
 import { PageTransition } from "@/components/shared/PageTransition";
 import { AuthProvider } from "@/hooks/useAuth";
 import { ToastProvider } from "@/components/shared/Toast";
+import { ChatSidebar } from "@/components/chat/ChatSidebar";
 
 export const metadata: Metadata = {
   title: "agent",
@@ -21,6 +22,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <AuthProvider>
           <ToastProvider>
             <PageTransition>{children}</PageTransition>
+            <ChatSidebar />
           </ToastProvider>
         </AuthProvider>
       </body>
