@@ -1,4 +1,4 @@
-import { getChatContext } from '@/lib/chatContexts';
+import { getChatContext, type FeatureName } from '@/lib/chatContexts';
 import { checkRateLimit, getClientIp } from '@/lib/rateLimit';
 import { LESSONS } from '@/lib/lessons';
 
@@ -9,7 +9,7 @@ export async function POST(req: Request) {
   }
 
   const { featureName, message, chatHistory } = (await req.json()) as {
-    featureName: string;
+    featureName: FeatureName;
     message: string;
     chatHistory: Array<{ role: string; content: string }>;
   };
@@ -18,7 +18,7 @@ export async function POST(req: Request) {
     return Response.json({ error: 'Missing featureName or message' }, { status: 400 });
   }
 
-  const context = getChatContext(featureName as any);
+  const context = getChatContext(featureName);
   if (!context) {
     return Response.json({ error: 'Invalid feature' }, { status: 400 });
   }
@@ -49,9 +49,8 @@ export async function POST(req: Request) {
       'X-Title': 'Agent Learn Chat',
     },
     body: JSON.stringify({
-      model: 'openai/gpt-4o-mini',
+      model: 'mistralai/ministral-3b-2512',
       max_tokens: 1024,
-      stream: true,
       messages: [
         { role: 'system', content: systemPrompt },
         ...(chatHistory || []),
@@ -67,12 +66,8 @@ export async function POST(req: Request) {
     return Response.json({ error: `OpenRouter error: ${err}` }, { status: 500 });
   }
 
-  /* Pipe the SSE stream directly to the browser */
-  return new Response(upstream.body, {
-    headers: {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
-      'X-Accel-Buffering': 'no',
-    },
-  });
+  const data = await upstream.json();
+  const responseText = data.choices?.[0]?.message?.content ?? '[No response]';
+
+  return Response.json({ content: responseText });
 }

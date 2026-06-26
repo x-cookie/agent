@@ -81,23 +81,10 @@ export function ChatSidebar() {
         throw new Error(`HTTP ${response.status}`);
       }
 
-      const reader = response.body?.getReader();
-      if (!reader) throw new Error('No response body');
+      const data = await response.json();
+      const content = data.content || '[No response]';
 
-      setMessages(prev => [...prev, { role: 'assistant', content: '' }]);
-      const decoder = new TextDecoder();
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        const chunk = decoder.decode(value);
-        setMessages(prev => {
-          const lastMsg = { ...prev[prev.length - 1] };
-          lastMsg.content += chunk;
-          return [...prev.slice(0, -1), lastMsg];
-        });
-      }
+      setMessages(prev => [...prev, { role: 'assistant', content }]);
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Connection error';
       setMessages(prev => [...prev, { role: 'assistant', content: `⚠️ Error: ${errorMsg}` }]);
