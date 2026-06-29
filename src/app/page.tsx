@@ -177,6 +177,7 @@ export default function LandingPage() {
               { href: "/learn",       label: "Learn"       },
               { href: "/agents",      label: "My Agents"   },
               { href: "/marketplace", label: "Marketplace" },
+              { href: "/companion",   label: "3D Companion" },
               { href: "/missions",    label: "Missions"    },
               { href: "/battle",      label: "Battle"      },
               { href: "/docs",        label: "Docs"        },

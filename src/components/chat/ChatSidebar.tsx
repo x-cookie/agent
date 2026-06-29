@@ -1,12 +1,10 @@
 'use client';
 
 import { usePathname } from 'next/navigation';
-import { useState, useRef, useEffect } from 'react';
-import Image from 'next/image';
+import { useState, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import { getChatContext, type FeatureName } from '@/lib/chatContexts';
 import { ChatMessageBubble } from './ChatMessageBubble';
-import { ChatMarkdownRenderer } from './ChatMarkdownRenderer';
 
 const ChatBot3DAvatar = dynamic(() => import('./ChatBot3DAvatar').then(m => m.ChatBot3DAvatar), { ssr: false });
 
@@ -28,6 +26,7 @@ function getFeatureIcon(feature: FeatureName | null): string {
   const icons: Record<FeatureName, string> = {
     learn: 'ti-book',
     marketplace: 'ti-shopping-cart',
+    companion: 'ti-robot',
     battle: 'ti-sword',
     missions: 'ti-rocket',
     landing: 'ti-home'
@@ -48,9 +47,10 @@ export function ChatSidebar() {
   const context = feature ? getChatContext(feature) : null;
   const featureIcon = getFeatureIcon(feature);
 
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  // Auto-scroll disabled - user controls scroll
+  // useEffect(() => {
+  //   messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  // }, [messages]);
 
   const handleSend = async (text?: string) => {
     const messageText = text || input.trim();
