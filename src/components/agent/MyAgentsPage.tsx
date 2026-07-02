@@ -244,6 +244,36 @@ const linkBtnStyle: React.CSSProperties = {
   textDecoration: 'none',
 };
 
+interface AuditSubscores {
+  reasoning_loop: number;
+  tool_definitions: number;
+  error_handling: number;
+  prompt_design: number;
+}
+
+interface AuditFix {
+  issue: string;
+  fix: string;
+  severity: 'critical' | 'high' | 'medium' | 'low';
+}
+
+interface AuditReport {
+  grade: string;
+  score: number;
+  summary: string;
+  strengths: string[];
+  weaknesses: string[];
+  fixes: AuditFix[];
+  subscores: AuditSubscores;
+  timestamp: string;
+  lessonId: number;
+}
+
+interface AuditResult {
+  json: AuditReport;
+  markdown: string;
+}
+
 function AgentCard({ agent, onUpdate, canDeploy }: { agent: SavedAgent; onUpdate: () => void; canDeploy: boolean }) {
   const [showRename, setShowRename] = useState(false);
   const [newName, setNewName] = useState(agent.name);
@@ -261,6 +291,9 @@ function AgentCard({ agent, onUpdate, canDeploy }: { agent: SavedAgent; onUpdate
   const [payoutEvmAddress, setPayoutEvmAddress] = useState<string | null>(null);
   const [connectingEvm, setConnectingEvm] = useState(false);
   const [lineageTx, setLineageTx] = useState<string | null>(null);
+  const [auditResult, setAuditResult] = useState<AuditResult | null>(null);
+  const [auditLoading, setAuditLoading] = useState(false);
+  const [auditError, setAuditError] = useState<string | null>(null);
   const { showToast } = useToast();
 
   const lesson = getLessonByFolder(agent.lessonId);
@@ -445,6 +478,30 @@ function AgentCard({ agent, onUpdate, canDeploy }: { agent: SavedAgent; onUpdate
       console.error('Delete failed:', e);
     } finally {
       setBusy(false);
+    }
+  };
+
+  const handleQuickAudit = async () => {
+    setAuditLoading(true);
+    setAuditError(null);
+    setAuditResult(null);
+    try {
+      const response = await fetch('/api/auditor/audit', {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({ code: agent.code, lessonId: parseInt(agent.lessonId) || 1 }),
+      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        setAuditError(errorData.error || 'Audit failed');
+        return;
+      }
+      const data = await response.json();
+      setAuditResult(data);
+    } catch (err) {
+      setAuditError(err instanceof Error ? err.message : 'Audit request failed');
+    } finally {
+      setAuditLoading(false);
     }
   };
 
@@ -643,6 +700,14 @@ function AgentCard({ agent, onUpdate, canDeploy }: { agent: SavedAgent; onUpdate
             </div>
           )}
           <BattleHistory agentId={agent.id} agentName={agent.name} authHeaders={authHeaders} />
+          <button
+            onClick={handleQuickAudit}
+            disabled={auditLoading}
+            style={{ ...cardGhostBtn, width: '100%', color: 'var(--purple)', border: '0.5px solid var(--purple)' }}
+          >
+            <i className="ti ti-checkup-list" style={{ fontSize: '12px' }} aria-hidden />
+            {auditLoading ? 'Auditing…' : 'Quick Audit'}
+          </button>
           <Link href="/missions" style={{ ...cardGhostBtn, width: '100%' }}>
             <i className="ti ti-briefcase" style={{ fontSize: '12px' }} aria-hidden />
             Send to mission
@@ -673,6 +738,111 @@ function AgentCard({ agent, onUpdate, canDeploy }: { agent: SavedAgent; onUpdate
           <button onClick={() => setShowRename(false)} disabled={busy} style={cardGhostBtn}>
             Cancel
           </button>
+        </div>
+      )}
+
+      {/* Audit Results */}
+      {auditError && (
+        <div
+          style={{
+            padding: '10px',
+            background: '#2c1414',
+            border: '0.5px solid #8b3a3a',
+            borderRadius: '6px',
+            color: '#ff6b6b',
+            fontSize: '12px',
+          }}
+        >
+          <strong>Audit error:</strong> {auditError}
+          <button
+            onClick={() => setAuditError(null)}
+            style={{ float: 'right', background: 'none', border: 'none', color: '#ff6b6b', cursor: 'pointer', fontSize: '14px' }}
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
+      {auditResult && (
+        <div
+          style={{
+            padding: '12px',
+            background: 'var(--bg)',
+            border: '0.5px solid var(--bd2)',
+            borderRadius: '6px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '10px',
+            fontSize: '12px',
+            maxHeight: '300px',
+            overflowY: 'auto',
+          }}
+        >
+          {/* Header */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '18px', fontWeight: 700, color: 'var(--purple)' }}>{auditResult.json.grade}</span>
+              <span style={{ fontSize: '11px', color: 'var(--t3)' }}>
+                {auditResult.json.score}/100
+              </span>
+            </div>
+            <button
+              onClick={() => setAuditResult(null)}
+              style={{ background: 'none', border: 'none', color: 'var(--t3)', cursor: 'pointer', fontSize: '14px' }}
+            >
+              ✕
+            </button>
+          </div>
+
+          {/* Summary */}
+          <div style={{ fontSize: '11px', color: 'var(--t2)', lineHeight: 1.4 }}>
+            {auditResult.json.summary}
+          </div>
+
+          {/* Strengths */}
+          {auditResult.json.strengths.length > 0 && (
+            <div>
+              <div style={{ fontSize: '10px', fontWeight: 600, color: 'var(--green)', marginBottom: '4px' }}>Strengths</div>
+              <ul style={{ margin: 0, paddingLeft: '16px', fontSize: '10px', color: 'var(--t3)' }}>
+                {auditResult.json.strengths.slice(0, 2).map((s, i) => (
+                  <li key={i}>{s}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* Weaknesses */}
+          {auditResult.json.weaknesses.length > 0 && (
+            <div>
+              <div style={{ fontSize: '10px', fontWeight: 600, color: '#ff6b6b', marginBottom: '4px' }}>Weaknesses</div>
+              <ul style={{ margin: 0, paddingLeft: '16px', fontSize: '10px', color: 'var(--t3)' }}>
+                {auditResult.json.weaknesses.slice(0, 2).map((w, i) => (
+                  <li key={i}>{w}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* Subscores */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', fontSize: '10px' }}>
+            <div style={{ color: 'var(--t4)' }}>
+              Loop: <span style={{ color: 'var(--t2)' }}>{auditResult.json.subscores.reasoning_loop}</span>
+            </div>
+            <div style={{ color: 'var(--t4)' }}>
+              Tools: <span style={{ color: 'var(--t2)' }}>{auditResult.json.subscores.tool_definitions}</span>
+            </div>
+            <div style={{ color: 'var(--t4)' }}>
+              Error: <span style={{ color: 'var(--t2)' }}>{auditResult.json.subscores.error_handling}</span>
+            </div>
+            <div style={{ color: 'var(--t4)' }}>
+              Prompt: <span style={{ color: 'var(--t2)' }}>{auditResult.json.subscores.prompt_design}</span>
+            </div>
+          </div>
+
+          {/* Timestamp */}
+          <div style={{ fontSize: '9px', color: 'var(--t4)', borderTop: '0.5px solid var(--bd)', paddingTop: '6px' }}>
+            {new Date(auditResult.json.timestamp).toLocaleString()}
+          </div>
         </div>
       )}
 

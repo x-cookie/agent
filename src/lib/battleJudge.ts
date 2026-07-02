@@ -18,16 +18,18 @@ ${code.slice(0, 3000)}
 Act as if you ARE this agent running against the scenario below. Follow the reasoning pattern implied by the lesson and produce realistic console-style output ending with a final answer. Keep it under 200 words. Do not explain the code — actually run the persona.`;
 }
 
-async function callOpenRouterRaw(systemPrompt: string, userPrompt: string): Promise<string> {
+export async function callOpenRouterRaw(systemPrompt: string, userPrompt: string, maxTokens: number = 1000): Promise<string> {
   const upstream = await fetch('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
       'Content-Type': 'application/json',
+      'HTTP-Referer': process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000',
+      'X-Title': 'AI Agents from Scratch',
     },
     body: JSON.stringify({
       model: 'mistralai/ministral-3b-2512',
-      max_tokens: 500,
+      max_tokens: maxTokens,
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt },
