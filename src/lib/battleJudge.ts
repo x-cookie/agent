@@ -19,26 +19,34 @@ Act as if you ARE this agent running against the scenario below. Follow the reas
 }
 
 export async function callOpenRouterRaw(systemPrompt: string, userPrompt: string, maxTokens: number = 1000): Promise<string> {
-  const upstream = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
-      'Content-Type': 'application/json',
-      'HTTP-Referer': process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000',
-      'X-Title': 'AI Agents from Scratch',
-    },
-    body: JSON.stringify({
-      model: 'mistralai/ministral-3b-2512',
-      max_tokens: maxTokens,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt },
-      ],
-    }),
-  });
-  if (!upstream.ok) throw new Error(`OpenRouter error: ${await upstream.text()}`);
-  const data = await upstream.json();
-  return data.choices?.[0]?.message?.content ?? '[No output returned]';
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 28000);
+
+  try {
+    const upstream = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      signal: controller.signal,
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
+        'Content-Type': 'application/json',
+        'HTTP-Referer': process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000',
+        'X-Title': 'Agent Learn Chat',
+      },
+      body: JSON.stringify({
+        model: 'mistralai/ministral-3b-2512',
+        max_tokens: maxTokens,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ],
+      }),
+    });
+    if (!upstream.ok) throw new Error(`OpenRouter error: ${await upstream.text()}`);
+    const data = await upstream.json();
+    return data.choices?.[0]?.message?.content ?? '[No output returned]';
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 /** Run one agent's persona against a shared battle scenario. */

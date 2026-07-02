@@ -49,32 +49,60 @@ The student's agent code is provided below. Audit it thoroughly for:
 - Memory/state management (retrieval sanity, context-window risks)
 - General code soundness (bugs, unsanitized inputs, anti-patterns)
 
-Return ONLY a valid JSON object, no other text before or after. Use exactly this schema:
-{
-  "grade": "A+" or "A" or "A-" or "B+" or "B" or "B-" or "C+" or "C" or "C-" or "D+" or "D" or "D-" or "F",
-  "score": <integer 0-100>,
-  "summary": "<one paragraph plain-English verdict, 2-3 sentences>",
-  "strengths": ["<strength 1>", "<strength 2>", "<strength 3>"],
-  "weaknesses": ["<weakness 1>", "<weakness 2>"],
-  "fixes": [
-    {"issue": "<issue description>", "fix": "<recommended fix>", "severity": "critical" or "high" or "medium" or "low"}
-  ],
-  "subscores": {
-    "reasoning_loop": <0-100>,
-    "tool_definitions": <0-100>,
-    "error_handling": <0-100>,
-    "prompt_design": <0-100>
+Keep all text fields SHORT: summary max 2 sentences, each strength/weakness/fix max 1 sentence. Maximum 3 fixes.
+
+Return ONLY a valid JSON object with NO markdown, NO code fences, NO extra text:
+{"grade":"A","score":85,"summary":"Text here.","strengths":["s1","s2"],"weaknesses":["w1"],"fixes":[{"issue":"i","fix":"f","severity":"high"}],"subscores":{"reasoning_loop":80,"tool_definitions":85,"error_handling":75,"prompt_design":90}}`;
+}
+
+/** Repair truncated JSON: close unterminated strings, brackets, and braces. */
+function tryParseJson(text: string): Record<string, unknown> | null {
+  const start = text.indexOf('{');
+  if (start === -1) return null;
+  let candidate = text.slice(start);
+  // Strip trailing code fence if present
+  candidate = candidate.replace(/```[\s\S]*$/, '').trim();
+
+  try {
+    return JSON.parse(candidate);
+  } catch {
+    // attempt repair of truncated JSON
   }
-}`;
+
+  let inString = false;
+  let escape = false;
+  const stack: string[] = [];
+  for (const ch of candidate) {
+    if (escape) { escape = false; continue; }
+    if (ch === '\\') { escape = true; continue; }
+    if (ch === '"') { inString = !inString; continue; }
+    if (inString) continue;
+    if (ch === '{') stack.push('}');
+    else if (ch === '[') stack.push(']');
+    else if (ch === '}' || ch === ']') stack.pop();
+  }
+
+  let repaired = candidate;
+  if (inString) repaired += '"';
+  // Drop trailing comma/colon fragments
+  repaired = repaired.replace(/[,:]\s*$/, '');
+  while (stack.length > 0) repaired += stack.pop();
+
+  try {
+    return JSON.parse(repaired);
+  } catch {
+    return null;
+  }
 }
 
 function parseAuditResponse(raw: string, lessonId: number): AuditReport {
   const timestamp = new Date().toISOString();
-  const jsonMatch = raw.match(/\{[\s\S]*\}/);
+  const parsedJson = tryParseJson(raw);
 
-  if (jsonMatch) {
+  if (parsedJson) {
     try {
-      const parsed = JSON.parse(jsonMatch[0]);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const parsed = parsedJson as any;
       const grade = typeof parsed.grade === 'string' ? parsed.grade : 'F';
       const scoreRaw = Number(parsed.score);
       const score = Number.isFinite(scoreRaw) ? Math.min(100, Math.max(0, Math.round(scoreRaw))) : 0;
@@ -104,6 +132,8 @@ function parseAuditResponse(raw: string, lessonId: number): AuditReport {
       // fall through to error fallback
     }
   }
+
+  console.error('[Auditor] Failed to parse LLM response. Raw output:', raw.slice(0, 500));
 
   return {
     grade: 'F',
@@ -188,7 +218,7 @@ export async function auditAgent(code: string, lessonId: number): Promise<AuditO
   const userPrompt = `Review this agent code:\n\`\`\`js\n${code.slice(0, 8000)}\n\`\`\``;
 
   try {
-    const raw = await callOpenRouterRaw(systemPrompt, userPrompt, 1500);
+    const raw = await callOpenRouterRaw(systemPrompt, userPrompt, 4000);
     const report = parseAuditResponse(raw, lessonId);
     const markdown = generateMarkdown(report);
     return { json: report, markdown };
