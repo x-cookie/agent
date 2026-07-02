@@ -51,22 +51,33 @@ async function processOrder(order: OrderPayload): Promise<void> {
           .insert({
             agent_id: null, // We don't have agent_id from Atelierai order, can be set later
             user_id: order.userId,
-            grade: report.grade,
-            score: report.score,
-            findings: report.findings,
-            lesson_id: report.lessonId,
-            created_at: report.timestamp,
+            grade: report.json.grade,
+            score: report.json.score,
+            findings: report.json.fixes,
+            lesson_id: report.json.lessonId,
+            created_at: report.json.timestamp,
           });
       }
 
       // Deliver result
-      const delivered = await deliverAuditResult(order.id, report);
+      const findings = report.json.fixes.map(f => ({
+        category: f.issue,
+        severity: f.severity,
+        detail: f.fix,
+      }));
+      const delivered = await deliverAuditResult(order.id, {
+        grade: report.json.grade,
+        score: report.json.score,
+        findings,
+        timestamp: report.json.timestamp,
+        lessonId: report.json.lessonId,
+      });
       if (!delivered) {
         console.error(`[Auditor] Failed to deliver audit for order ${order.id}`);
         return;
       }
 
-      console.log(`[Auditor] Delivered audit for order ${order.id}, grade: ${report.grade}`);
+      console.log(`[Auditor] Delivered audit for order ${order.id}, grade: ${report.json.grade}`);
     }
   } catch (err) {
     console.error(`[Auditor] Error processing order ${order.id}:`, err);
