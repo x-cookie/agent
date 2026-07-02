@@ -91,7 +91,7 @@ export async function pollPendingOrders(): Promise<
         userId?: string;
         metadata?: Record<string, unknown>;
       }>
-    >('GET', '/api/orders?status=pending_quote');
+    >('GET', '/api/agents/ext_1783002313225_enxpv3ru1/orders');
 
     return result.data || [];
   } catch (err) {
